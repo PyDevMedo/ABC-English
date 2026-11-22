@@ -983,38 +983,108 @@ async def cb_hw_stage_view(call: CallbackQuery):
     ]
     await safe_edit_or_reply(call, text, reply_markup=InlineKeyboardMarkup(inline_keyboard=buttons))
 
-# Section 5: Submissions Management
-@dp.callback_query(F.data == "menu_submissions")
+# Section 5: Submissions Management (Pending by default, Graded in separate Archive)
+@dp.callback_query(F.data.in_(["menu_submissions", "sub_filter_pending", "sub_filter_graded"]))
 async def cb_menu_submissions(call: CallbackQuery):
+    show_graded = call.data == "sub_filter_graded"
+
     async with AsyncSessionLocal() as db:
-        q = select(AssignmentSubmission).options(
-            selectinload(AssignmentSubmission.student).selectinload(StudentProfile.user),
-            selectinload(AssignmentSubmission.assignment)
-        ).order_by(AssignmentSubmission.id.desc()).limit(15)
+        if show_graded:
+            # Graded archive
+            q = select(AssignmentSubmission).options(
+                selectinload(AssignmentSubmission.student).selectinload(StudentProfile.user),
+                selectinload(AssignmentSubmission.assignment),
+                selectinload(AssignmentSubmission.feedback)
+            ).where(AssignmentSubmission.status == "graded").order_by(AssignmentSubmission.id.desc()).limit(15)
+        else:
+            # Pending & Needs Retry queue (Unresolved homework that needs teacher action)
+            q = select(AssignmentSubmission).options(
+                selectinload(AssignmentSubmission.student).selectinload(StudentProfile.user),
+                selectinload(AssignmentSubmission.assignment),
+                selectinload(AssignmentSubmission.feedback)
+            ).where(AssignmentSubmission.status.in_(["submitted", "needs_retry"])).order_by(AssignmentSubmission.id.desc()).limit(20)
 
         submissions = (await db.execute(q)).scalars().all()
 
-        text = f"{tg_e('CAMERA', '📝')} <b>قسم تسليمات الدفاتر والواجبات:</b>\n\n"
+        # Count stats
+        pending_total_q = select(AssignmentSubmission).where(AssignmentSubmission.status == "submitted")
+        pending_total = len((await db.execute(pending_total_q)).scalars().all())
+
+        retry_total_q = select(AssignmentSubmission).where(AssignmentSubmission.status == "needs_retry")
+        retry_total = len((await db.execute(retry_total_q)).scalars().all())
+
+        graded_total_q = select(AssignmentSubmission).where(AssignmentSubmission.status == "graded")
+        graded_total = len((await db.execute(graded_total_q)).scalars().all())
+
+        text = f"{tg_e('CAMERA', '📝')} <b>إدارة تسليمات دفاتر الواجبات:</b>\n\n"
         buttons = []
 
-        if submissions:
-            pending_count = sum(1 for s in submissions if s.status == "submitted")
-            text += f"<blockquote>🔔 <b>إجمالي التسليمات الأخيرة: {len(submissions)}</b> (منها <b>{pending_count}</b> بانتظار التصحيح):</blockquote>\n"
-            for sub in submissions:
-                s_name = sub.student.user.full_name if (sub.student and sub.student.user) else f"Student #{sub.student_id}"
-                hw_title = sub.assignment.title if sub.assignment else "Homework"
-                status_icon = "BELL" if sub.status == "submitted" else ("CHECK" if sub.status == "graded" else "ALERT")
-                status_desc = "جديد" if sub.status == "submitted" else ("معتمد" if sub.status == "graded" else "إعادة")
-                buttons.append([s_btn(
-                    f"{s_name} - {status_desc} ({hw_title[:15]})",
-                    f"sub_rev_{sub.id}",
-                    style="primary" if sub.status == "submitted" else "success",
-                    emoji_key=status_icon
-                )])
-        else:
-            text += "<blockquote>✅ <i>لا توجد تسليمات مسجلة حالياً في النظام.</i></blockquote>\n"
+        # Tabs row to switch between Pending Queue and Graded Archive
+        tabs_row = [
+            s_btn(
+                f"📥 بانتظار التصحيح ({pending_total + retry_total})",
+                "sub_filter_pending",
+                style="success" if not show_graded else "primary",
+                emoji_key="BELL"
+            ),
+            s_btn(
+                f"🗄️ الأرشيف المصحح ({graded_total})",
+                "sub_filter_graded",
+                style="success" if show_graded else "primary",
+                emoji_key="CHECK"
+            )
+        ]
+        buttons.append(tabs_row)
 
-        buttons.append([s_btn("التصحيح السريع للواجبات", "menu_grading", style="success", emoji_key="CHECK")])
+        if not show_graded:
+            if submissions:
+                text += (
+                    f"<blockquote>"
+                    f"⏳ <b>قائمة الواجبات النشطة المطلوب تصحيحها:</b>\n"
+                    f"• جديدة بانتظار الدرجة: <b>{pending_total}</b>\n"
+                    f"• مطلوب إعادة كتابتها: <b>{retry_total}</b>\n"
+                    f"<i>(الواجب يختفي تلقائياً من هنا فور تصحيحه ورصد درجته)</i>"
+                    f"</blockquote>\n"
+                )
+                for sub in submissions:
+                    s_name = sub.student.user.full_name if (sub.student and sub.student.user) else f"Student #{sub.student_id}"
+                    hw_title = sub.assignment.title if sub.assignment else "Homework"
+                    is_new = sub.status == "submitted"
+                    status_icon = "BELL" if is_new else "ALERT"
+                    status_desc = "جديد" if is_new else "طلب إعادة"
+                    buttons.append([s_btn(
+                        f"📝 {s_name} - {status_desc} (L{sub.assignment.level_id if sub.assignment else 1})",
+                        f"sub_rev_{sub.id}",
+                        style="primary" if is_new else "danger",
+                        emoji_key=status_icon
+                    )])
+            else:
+                text += (
+                    f"<blockquote>"
+                    f"🎉 <b>رائع جداً! لا توجد أي واجبات معلقة حالياً.</b>\n"
+                    f"تم تصحيح واعتماد جميع الواجبات المسلمة بالكامل ونقلها للأرشيف."
+                    f"</blockquote>\n"
+                )
+        else:
+            # Viewing Graded Archive
+            if submissions:
+                text += f"<blockquote>🗄️ <b>أرشيف الواجبات المصححة والمعتمدة مؤخراً ({len(submissions)}):</b></blockquote>\n"
+                for sub in submissions:
+                    s_name = sub.student.user.full_name if (sub.student and sub.student.user) else f"Student #{sub.student_id}"
+                    hw_title = sub.assignment.title if sub.assignment else "Homework"
+                    score_str = f"{sub.feedback.score}%" if (sub.feedback and sub.feedback.score is not None) else "100%"
+                    buttons.append([s_btn(
+                        f"✅ {s_name} - {score_str} (L{sub.assignment.level_id if sub.assignment else 1})",
+                        f"sub_rev_{sub.id}",
+                        style="success",
+                        emoji_key="CHECK"
+                    )])
+            else:
+                text += "<blockquote><i>لا توجد واجبات معتمدة في الأرشيف بعد.</i></blockquote>\n"
+
+        if not show_graded and submissions:
+            buttons.append([s_btn("⚡ التصحيح الفوري المتتالي", "menu_grading", style="success", emoji_key="CHECK")])
+
         buttons.append([s_btn("العودة للقائمة الرئيسية", "main_menu", style="danger", emoji_key="DANGER")])
 
         await safe_edit_or_reply(call, text, reply_markup=InlineKeyboardMarkup(inline_keyboard=buttons))
