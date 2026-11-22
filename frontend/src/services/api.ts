@@ -152,6 +152,14 @@ export const api = {
     return res.json();
   },
 
+  async getMySubmissions() {
+    const res = await fetch(`${API_BASE}/assignments/my-submissions`, {
+      headers: getHeaders()
+    });
+    if (!res.ok) throw new Error('فشل جلب سجل تسليمات الواجبات');
+    return res.json();
+  },
+
   async getAssignmentByLevel(levelId: number) {
     const res = await fetch(`${API_BASE}/assignments/by-level/${levelId}`, {
       headers: getHeaders()

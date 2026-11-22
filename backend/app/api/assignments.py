@@ -1,11 +1,15 @@
 import os
 import uuid
+import asyncio
+import logging
 from typing import List, Optional
 from datetime import datetime
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, and_
 from sqlalchemy.orm import selectinload
+
+logger = logging.getLogger(__name__)
 
 from app.core.config import settings
 from app.core.database import get_db
@@ -18,6 +22,45 @@ from app.schemas.schemas import AssignmentCreate, AssignmentFeedbackCreate
 from app.services.telegram_notifier import notify_assignment_submission
 
 router = APIRouter(prefix="/assignments", tags=["Assignments & Homework"])
+
+@router.get("/my-submissions")
+async def get_my_submissions(
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """Get all handwriting homework requests/submissions made by the logged-in student"""
+    if not current_user.student_profile:
+        raise HTTPException(status_code=400, detail="Only students can view homework submissions")
+
+    q = select(AssignmentSubmission).options(
+        selectinload(AssignmentSubmission.assignment).selectinload(Assignment.level),
+        selectinload(AssignmentSubmission.feedback)
+    ).where(
+        AssignmentSubmission.student_id == current_user.student_profile.id
+    ).order_by(AssignmentSubmission.id.desc())
+
+    subs = (await db.execute(q)).scalars().all()
+
+    results = []
+    for s in subs:
+        lvl_num = s.assignment.level.level_number if (s.assignment and s.assignment.level) else (s.assignment.level_id if s.assignment else 1)
+        results.append({
+            "id": s.id,
+            "assignment_id": s.assignment_id,
+            "level_number": lvl_num,
+            "title": s.assignment.title if s.assignment else f"واجب المستوى {lvl_num}",
+            "instructions_ar": s.assignment.instructions_ar if s.assignment else "",
+            "submission_type": s.submission_type,
+            "image_url": s.image_url,
+            "audio_url": s.audio_url,
+            "status": s.status, # submitted, graded, needs_retry
+            "submitted_at": s.submitted_at.strftime("%Y-%m-%d %H:%M") if s.submitted_at else "الآن",
+            "score": s.feedback.score if s.feedback else None,
+            "comments": s.feedback.comments if s.feedback else None,
+            "retry_requested": s.feedback.retry_requested if s.feedback else False,
+            "reviewed_at": s.feedback.reviewed_at.strftime("%Y-%m-%d %H:%M") if (s.feedback and s.feedback.reviewed_at) else None
+        })
+    return results
 
 @router.get("/by-level/{level_id}")
 async def get_level_handwriting_assignment(
@@ -182,7 +225,7 @@ async def submit_assignment(
 
     if asg:
         next_lvl = asg.level_id + 1
-        if next_lvl <= 8:
+        if next_lvl <= 50:
             acc_q = select(StudentLevelAccess).where(
                 and_(StudentLevelAccess.student_id == student.id, StudentLevelAccess.level_id == next_lvl)
             )
@@ -200,14 +243,17 @@ async def submit_assignment(
 
     await db.commit()
 
-    # Notify Telegram bot admins with the student's notebook photo!
-    await notify_assignment_submission(
-        student_name=current_user.full_name,
-        student_id_str=current_user.student_id or str(current_user.id),
-        assignment_title=title,
-        submission_id=sub_id,
-        photo_path=image_fpath
-    )
+    # Notify Telegram bot admins with the student's notebook photo in background!
+    try:
+        asyncio.create_task(notify_assignment_submission(
+            student_name=current_user.full_name,
+            student_id_str=current_user.student_id or str(current_user.id),
+            assignment_title=title,
+            submission_id=sub_id,
+            photo_path=image_fpath
+        ))
+    except Exception as e:
+        logger.warning(f"Failed to dispatch telegram assignment notification: {e}")
 
     return {
         "status": "success",
