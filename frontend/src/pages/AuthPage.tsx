@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Sparkles, Phone, Lock, User, ArrowRight, ShieldCheck, GraduationCap } from 'lucide-react';
+import { Sparkles, Phone, Lock, User, ArrowRight, ShieldCheck, GraduationCap, Eye, EyeOff } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 
 export const AuthPage: React.FC = () => {
@@ -8,6 +8,9 @@ export const AuthPage: React.FC = () => {
   const [fullName, setFullName] = useState('');
   const [phoneNumber, setPhoneNumber] = useState('');
   const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
@@ -19,7 +22,13 @@ export const AuthPage: React.FC = () => {
     try {
       if (isRegister) {
         if (fullName.trim().split(/\s+/).length < 3) {
-          throw new Error('يرجى إدخال الاسم الثلاثي كاملاً للطالب (مثال: محمد أحمد علي)');
+          throw new Error('يرجى إدخال الاسم الثلاثي كاملاً للطالب (مثال: أحمد أشرف الشوادفي)');
+        }
+        if (password.length < 6) {
+          throw new Error('يجب ألا تقل كلمة المرور عن 6 أحرف أو أرقام');
+        }
+        if (password !== confirmPassword) {
+          throw new Error('كلمتا المرور غير متطابقتين، يرجى كتابة نفس كلمة المرور في خانة التأكيد');
         }
         await register({
           full_name: fullName.trim(),
@@ -104,16 +113,49 @@ export const AuthPage: React.FC = () => {
             <label className="block text-xs font-black text-slate-700 mb-1">كلمة المرور:</label>
             <div className="relative">
               <input
-                type="password"
+                type={showPassword ? "text" : "password"}
                 required
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 placeholder="••••••••"
-                className="w-full px-4 py-3.5 pr-10 rounded-2xl border border-slate-200 bg-slate-50/50 focus:bg-white focus:border-amber-400 focus:outline-none font-bold text-slate-800 text-sm transition-all"
+                className="w-full px-4 py-3.5 pr-10 pl-11 rounded-2xl border border-slate-200 bg-slate-50/50 focus:bg-white focus:border-amber-400 focus:outline-none font-bold text-slate-800 text-sm transition-all"
               />
-              <Lock className="w-5 h-5 text-slate-400 absolute right-3.5 top-3.5" />
+              <Lock className="w-5 h-5 text-slate-400 absolute right-3.5 top-3.5 pointer-events-none" />
+              <button
+                type="button"
+                onClick={() => setShowPassword(!showPassword)}
+                className="absolute left-3 top-3 p-1 text-slate-400 hover:text-slate-600 focus:outline-none transition-colors"
+                title={showPassword ? "إخفاء كلمة المرور" : "عرض كلمة المرور"}
+              >
+                {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+              </button>
             </div>
           </div>
+
+          {isRegister && (
+            <div>
+              <label className="block text-xs font-black text-slate-700 mb-1">تأكيد كلمة المرور:</label>
+              <div className="relative">
+                <input
+                  type={showConfirmPassword ? "text" : "password"}
+                  required
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                  placeholder="••••••••"
+                  className="w-full px-4 py-3.5 pr-10 pl-11 rounded-2xl border border-slate-200 bg-slate-50/50 focus:bg-white focus:border-amber-400 focus:outline-none font-bold text-slate-800 text-sm transition-all"
+                />
+                <Lock className="w-5 h-5 text-slate-400 absolute right-3.5 top-3.5 pointer-events-none" />
+                <button
+                  type="button"
+                  onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                  className="absolute left-3 top-3 p-1 text-slate-400 hover:text-slate-600 focus:outline-none transition-colors"
+                  title={showConfirmPassword ? "إخفاء كلمة المرور" : "عرض كلمة المرور"}
+                >
+                  {showConfirmPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                </button>
+              </div>
+            </div>
+          )}
 
           <button
             type="submit"
@@ -137,6 +179,7 @@ export const AuthPage: React.FC = () => {
             onClick={() => {
               setIsRegister(!isRegister);
               setError(null);
+              setConfirmPassword('');
             }}
             className="text-xs font-black text-slate-600 hover:text-amber-600 transition-colors"
           >
