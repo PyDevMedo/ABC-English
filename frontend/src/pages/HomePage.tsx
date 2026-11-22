@@ -62,17 +62,10 @@ export const HomePage: React.FC<HomePageProps> = ({ onNavigate }) => {
           <div className="flex gap-3">
             <button
               onClick={() => onNavigate('levels')}
-              className="px-6 py-3.5 bg-white hover:bg-slate-50 text-slate-900 font-black rounded-2xl shadow-lg transform active:scale-95 transition-all flex items-center gap-2 text-sm"
+              className="px-8 py-3.5 bg-white hover:bg-slate-50 text-slate-900 font-black rounded-2xl shadow-lg transform active:scale-95 transition-all flex items-center gap-2 text-sm"
             >
               <PlayCircle className="w-5 h-5 text-rose-500 fill-rose-500" />
-              <span>ابدأ درس اليوم</span>
-            </button>
-            <button
-              onClick={() => onNavigate('pronunciation')}
-              className="px-5 py-3.5 bg-white/20 hover:bg-white/30 backdrop-blur-md text-white font-black rounded-2xl border border-white/40 shadow-lg transform active:scale-95 transition-all flex items-center gap-2 text-sm"
-            >
-              <Mic className="w-5 h-5" />
-              <span>مختبر النطق</span>
+              <span>ابدأ درس اليوم 🚀</span>
             </button>
           </div>
         </div>

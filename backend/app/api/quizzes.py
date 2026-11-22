@@ -41,6 +41,7 @@ async def get_level_quiz(
                 "question_type": q.question_type,
                 "question_text": q.question_text,
                 "audio_url": q.audio_url,
+                "audio_text": q.correct_answer if (q.audio_url or q.question_type == "listen_select") else None,
                 "image_url": q.image_url,
                 "options": q.options_json
             } for q in quiz.questions

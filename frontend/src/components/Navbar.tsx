@@ -1,10 +1,9 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { 
-  Sparkles, Star, Flame, Trophy, Send, LogOut, BookOpen, 
-  Layers, CheckSquare, Award, Mic, Home, User
+  Sparkles, Star, Flame, Trophy, LogOut, BookOpen, 
+  Layers, CheckSquare, Award, Home, User
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
-import { TelegramModal } from './TelegramModal';
 
 interface NavbarProps {
   currentTab: string;
@@ -13,7 +12,6 @@ interface NavbarProps {
 
 export const Navbar: React.FC<NavbarProps> = ({ currentTab, setCurrentTab }) => {
   const { user, logout } = useAuth();
-  const [showTelegramModal, setShowTelegramModal] = useState(false);
 
   if (!user) return null;
 
@@ -23,7 +21,6 @@ export const Navbar: React.FC<NavbarProps> = ({ currentTab, setCurrentTab }) => 
     { id: 'adaptive', label: 'المسار الذكي AI', icon: Sparkles, color: 'text-purple-500' },
     { id: 'homework', label: 'الواجبات', icon: CheckSquare, color: 'text-emerald-500' },
     { id: 'quizzes', label: 'اختباراتي', icon: Award, color: 'text-rose-500' },
-    { id: 'pronunciation', label: 'مدرس النطق', icon: Mic, color: 'text-indigo-500' },
     { id: 'achievements', label: 'إنجازاتي', icon: Trophy, color: 'text-yellow-500' },
   ];
 
@@ -90,16 +87,6 @@ export const Navbar: React.FC<NavbarProps> = ({ currentTab, setCurrentTab }) => 
               <span className="font-black text-rose-900 text-xs font-fredoka">{user.streak_days} Days</span>
             </div>
 
-            {/* Telegram Link Pill */}
-            <button
-              onClick={() => setShowTelegramModal(true)}
-              className="flex items-center gap-1.5 bg-gradient-to-r from-sky-400 to-blue-500 hover:from-sky-500 hover:to-blue-600 text-white px-3.5 py-2 rounded-2xl shadow-md shadow-sky-200 text-xs md:text-sm font-black transition-all active:scale-95"
-              title="ربط حساب Telegram لولي الأمر"
-            >
-              <Send className="w-3.5 h-3.5" />
-              <span className="hidden sm:inline">ربط Telegram</span>
-            </button>
-
             {/* User Profile Pill */}
             <div className="flex items-center gap-2 bg-slate-50 p-1.5 pr-3 rounded-2xl border border-slate-200/80">
               <span className="text-xl" title={user.avatar}>{getAvatarEmoji(user.avatar)}</span>
@@ -142,12 +129,6 @@ export const Navbar: React.FC<NavbarProps> = ({ currentTab, setCurrentTab }) => 
           </div>
         </div>
       </header>
-
-      <TelegramModal
-        isOpen={showTelegramModal}
-        onClose={() => setShowTelegramModal(false)}
-        studentName={user.full_name}
-      />
     </>
   );
 };
