@@ -18,7 +18,6 @@ export const Navbar: React.FC<NavbarProps> = ({ currentTab, setCurrentTab }) => 
   const navItems = [
     { id: 'home', label: 'الرئيسية', icon: Home, color: 'text-amber-500' },
     { id: 'levels', label: 'المستويات والدروس', icon: Layers, color: 'text-sky-500' },
-    { id: 'adaptive', label: 'المسار الذكي AI', icon: Sparkles, color: 'text-purple-500' },
     { id: 'homework', label: 'الواجبات', icon: CheckSquare, color: 'text-emerald-500' },
     { id: 'quizzes', label: 'اختباراتي', icon: Award, color: 'text-rose-500' },
     { id: 'achievements', label: 'إنجازاتي', icon: Trophy, color: 'text-yellow-500' },

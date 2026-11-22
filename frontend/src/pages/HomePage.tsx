@@ -72,7 +72,7 @@ export const HomePage: React.FC<HomePageProps> = ({ onNavigate }) => {
       </div>
 
       {/* Quick Status Cards Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         {/* Next Lesson Card */}
         <div className="kid-card p-6">
           <div className="flex items-center justify-between mb-4">
@@ -92,31 +92,6 @@ export const HomePage: React.FC<HomePageProps> = ({ onNavigate }) => {
             className="w-full py-2.5 bg-sky-500 hover:bg-sky-600 text-white font-black rounded-xl text-xs flex items-center justify-center gap-1.5 transition-all shadow-md shadow-sky-100"
           >
             <span>متابعة الدرس</span>
-            <ArrowLeft className="w-4 h-4" />
-          </button>
-        </div>
-
-        {/* AI Learning Path Alert Card */}
-        <div className="kid-card p-6">
-          <div className="flex items-center justify-between mb-4">
-            <span className="p-3 bg-purple-50 text-purple-600 rounded-2xl border border-purple-100">
-              <Sparkles className="w-6 h-6 animate-pulse" />
-            </span>
-            <span className="text-[11px] font-black text-purple-600 bg-purple-50 px-3 py-1 rounded-full">المدرس الذكي AI</span>
-          </div>
-          <h3 className="text-lg font-black text-slate-800 mb-1">
-            {learningPlan?.has_plan ? 'خطة تدريب شخصية نشطة' : 'أداؤك الصوتي ممتاز!'}
-          </h3>
-          <p className="text-xs text-slate-500 mb-4 font-bold">
-            {learningPlan?.has_plan
-              ? learningPlan.current_focus
-              : 'الذكاء الاصطناعي يراقب نطقك لتوجيهك عند الحاجة.'}
-          </p>
-          <button
-            onClick={() => onNavigate('adaptive')}
-            className="w-full py-2.5 bg-purple-500 hover:bg-purple-600 text-white font-black rounded-xl text-xs flex items-center justify-center gap-1.5 transition-all shadow-md shadow-purple-100"
-          >
-            <span>{learningPlan?.has_plan ? 'حل تدريبات الذكاء الاصطناعي' : 'عرض مسار التعلم'}</span>
             <ArrowLeft className="w-4 h-4" />
           </button>
         </div>
