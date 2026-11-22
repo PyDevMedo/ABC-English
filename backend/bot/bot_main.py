@@ -917,6 +917,28 @@ async def cb_apply_grade(call: CallbackQuery):
             sub.student.xp = (sub.student.xp or 0) + 50
             sub.student.stars = (sub.student.stars or 0) + 3
 
+            # Also ensure next level is unlocked and active for the student
+            if sub.assignment:
+                next_lvl_num = sub.assignment.level_id + 1
+                if next_lvl_num <= 50:
+                    acc_q = select(StudentLevelAccess).where(
+                        and_(StudentLevelAccess.student_id == sub.student.id, StudentLevelAccess.level_id == next_lvl_num)
+                    )
+                    acc = (await db.execute(acc_q)).scalar_one_or_none()
+                    if not acc:
+                        acc = StudentLevelAccess(
+                            student_id=sub.student.id,
+                            level_id=next_lvl_num,
+                            is_unlocked=True,
+                            unlocked_by="teacher_grading"
+                        )
+                        db.add(acc)
+                    else:
+                        acc.is_unlocked = True
+
+                    if (sub.student.current_level_id or 1) <= sub.assignment.level_id:
+                        sub.student.current_level_id = next_lvl_num
+
         await db.commit()
 
         await call.answer(f"تم رصد درجة {score}% ومنح الطالب +50 XP و+3 نجوم!", show_alert=True)

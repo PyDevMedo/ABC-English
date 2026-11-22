@@ -166,6 +166,47 @@ async def complete_lesson(
         # Award XP & Stars
         student.xp += 30
         student.stars += 3
-        await db.commit()
 
-    return {"status": "success", "xp_earned": 30, "stars_earned": 3, "total_xp": student.xp, "total_stars": student.stars}
+    # Find which level this lesson belongs to and advance to next level!
+    lesson_q = select(Lesson).where(Lesson.id == lesson_id)
+    lesson_obj = (await db.execute(lesson_q)).scalar_one_or_none()
+    
+    level_advanced = False
+    next_level_num = student.current_level_id
+    if lesson_obj:
+        next_lvl = lesson_obj.level_id + 1
+        if next_lvl <= 50:
+            # Ensure next level access is unlocked in student_level_accesses
+            acc_q = select(StudentLevelAccess).where(
+                and_(StudentLevelAccess.student_id == student.id, StudentLevelAccess.level_id == next_lvl)
+            )
+            acc = (await db.execute(acc_q)).scalar_one_or_none()
+            if not acc:
+                acc = StudentLevelAccess(
+                    student_id=student.id,
+                    level_id=next_lvl,
+                    is_unlocked=True,
+                    unlocked_by="lesson_completion"
+                )
+                db.add(acc)
+            else:
+                acc.is_unlocked = True
+
+            # Advance current_level_id to the new level if student was at or below this level
+            if student.current_level_id <= lesson_obj.level_id:
+                student.current_level_id = next_lvl
+                level_advanced = True
+                next_level_num = next_lvl
+
+    await db.commit()
+
+    return {
+        "status": "success",
+        "xp_earned": 30,
+        "stars_earned": 3,
+        "total_xp": student.xp,
+        "total_stars": student.stars,
+        "current_level_id": student.current_level_id,
+        "level_advanced": level_advanced,
+        "next_level": next_level_num
+    }

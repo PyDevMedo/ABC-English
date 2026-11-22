@@ -241,6 +241,10 @@ async def submit_assignment(
             else:
                 acc.is_unlocked = True
 
+            # Advance student's active level if they just completed homework for their current level
+            if student.current_level_id <= asg.level_id:
+                student.current_level_id = next_lvl
+
     await db.commit()
 
     # Notify Telegram bot admins with the student's notebook photo in background!
