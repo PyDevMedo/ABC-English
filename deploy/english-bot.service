@@ -1,0 +1,16 @@
+[Unit]
+Description=My English Journey Telegram Admin Bot Service (aiogram 3)
+After=network.target english-backend.service
+
+[Service]
+Type=simple
+User=www-data
+Group=www-data
+WorkingDirectory=/var/www/english-journey/backend
+EnvironmentFile=/var/www/english-journey/backend/.env
+ExecStart=/var/www/english-journey/backend/venv/bin/python bot/bot_main.py
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

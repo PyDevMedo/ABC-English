@@ -1,0 +1,33 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  body {
+    background-color: #fefce8;
+  }
+}
+
+.kid-card {
+  @apply bg-white rounded-3xl border-4 border-amber-200 shadow-[0_8px_0_0_#fde047] hover:shadow-[0_4px_0_0_#fde047] hover:translate-y-1 transition-all duration-200;
+}
+
+.kid-button {
+  @apply font-bold rounded-2xl shadow-[0_6px_0_0_rgba(0,0,0,0.15)] active:shadow-[0_2px_0_0_rgba(0,0,0,0.15)] active:translate-y-1 transition-all duration-150 flex items-center justify-center gap-2;
+}
+
+.kid-button-primary {
+  @apply kid-button bg-amber-400 hover:bg-amber-500 text-amber-950 shadow-amber-600 active:shadow-amber-600;
+}
+
+.kid-button-green {
+  @apply kid-button bg-emerald-400 hover:bg-emerald-500 text-emerald-950 shadow-emerald-600 active:shadow-emerald-600;
+}
+
+.kid-button-blue {
+  @apply kid-button bg-sky-400 hover:bg-sky-500 text-sky-950 shadow-sky-600 active:shadow-sky-600;
+}
+
+.kid-button-purple {
+  @apply kid-button bg-purple-400 hover:bg-purple-500 text-purple-950 shadow-purple-600 active:shadow-purple-600;
+}

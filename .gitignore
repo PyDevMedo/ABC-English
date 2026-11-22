@@ -1,0 +1,30 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+backend/venv/
+backend/.env
+*.db
+*.sqlite3
+
+# Node / Frontend
+frontend/node_modules/
+frontend/.pnp
+frontend/.pnp.js
+frontend/coverage/
+
+# Uploads and temporary audio
+backend/uploads/*
+!backend/uploads/.gitkeep
+backend/static/audio/*
+!backend/static/audio/.gitkeep
+
+# Testing & Cache
+.pytest_cache/
+.coverage
+htmlcov/
+.idea/
+.vscode/
+*.swp

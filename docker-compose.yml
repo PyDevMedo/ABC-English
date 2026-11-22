@@ -1,0 +1,76 @@
+version: '3.8'
+
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: english_journey_db
+    restart: always
+    environment:
+      POSTGRES_USER: english_user
+      POSTGRES_PASSWORD: english_secure_password_2026
+      POSTGRES_DB: english_journey
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U english_user -d english_journey"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: english_journey_backend
+    restart: always
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql+asyncpg://english_user:english_secure_password_2026@db:5432/english_journey
+      SECRET_KEY: ${SECRET_KEY:-english-journey-super-secret-key-children-2026-xyz123}
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN}
+      TELEGRAM_ADMIN_IDS: ${TELEGRAM_ADMIN_IDS}
+      UPLOAD_DIR: /app/uploads
+      STATIC_AUDIO_DIR: /app/static/audio
+    volumes:
+      - backend_uploads:/app/uploads
+      - backend_static_audio:/app/static/audio
+    ports:
+      - "8000:8000"
+
+  bot:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile.bot
+    container_name: english_journey_bot
+    restart: always
+    depends_on:
+      db:
+        condition: service_healthy
+      backend:
+        condition: service_started
+    environment:
+      DATABASE_URL: postgresql+asyncpg://english_user:english_secure_password_2026@db:5432/english_journey
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN}
+      TELEGRAM_ADMIN_IDS: ${TELEGRAM_ADMIN_IDS}
+
+  nginx:
+    image: nginx:alpine
+    container_name: english_journey_nginx
+    restart: always
+    depends_on:
+      - backend
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx.conf:/etc/nginx/conf.d/default.conf:ro
+      - ./frontend/dist:/usr/share/nginx/html:ro
+
+volumes:
+  postgres_data:
+  backend_uploads:
+  backend_static_audio:
