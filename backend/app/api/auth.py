@@ -149,16 +149,22 @@ async def register(user_in: UserRegister, db: AsyncSession = Depends(get_db)):
 async def login(credentials: UserLogin, db: AsyncSession = Depends(get_db)):
     clean_phone = validate_phone_number(credentials.phone_number)
     if not clean_phone:
-        raise HTTPException(status_code=400, detail="رقم الهاتف غير صالح")
+        raise HTTPException(status_code=400, detail="خطأ في رقم الهاتف: رقم الهاتف غير صالح، يرجى إدخال رقم صحيح (مثال: 01012345678)")
 
     q = select(User).where(User.phone_number == clean_phone)
     res = await db.execute(q)
     user = res.scalar_one_or_none()
 
-    if not user or not verify_password(credentials.password, user.hashed_password):
+    if not user:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="رقم الهاتف أو كلمة المرور غير صحيحة"
+            detail="خطأ في رقم الهاتف: هذا الرقم غير مسجل في النظام، يرجى التأكد من الرقم أو إنشاء حساب جديد."
+        )
+
+    if not verify_password(credentials.password, user.hashed_password):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="خطأ في كلمة المرور: كلمة المرور المدخلة غير صحيحة، يرجى التأكد منها وإعادة المحاولة."
         )
 
     if not user.is_active:

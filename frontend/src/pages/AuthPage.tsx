@@ -76,7 +76,7 @@ export const AuthPage: React.FC = () => {
                   required
                   value={fullName}
                   onChange={(e) => setFullName(e.target.value)}
-                  placeholder="مثال: يوسف محمود إبراهيم"
+                  placeholder="مثال: أحمد أشرف الشوادفي"
                   className="w-full px-4 py-3.5 pr-10 rounded-2xl border border-slate-200 bg-slate-50/50 focus:bg-white focus:border-amber-400 focus:outline-none font-bold text-slate-800 text-sm transition-all"
                 />
                 <User className="w-5 h-5 text-slate-400 absolute right-3.5 top-3.5" />

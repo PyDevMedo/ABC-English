@@ -35,28 +35,45 @@ async def test_student_registration_validation():
         # 3. Successful registration with 3-part name and dynamic unique phone
         unique_phone = f"010{uuid.uuid4().int % 100000000:08d}"
         reg_res = await ac.post("/api/v1/auth/register", json={
-            "full_name": "يوسف محمود إبراهيم",
+            "full_name": "أحمد أشرف الشوادفي",
             "phone_number": unique_phone,
             "password": "password123",
             "avatar": "panda"
         })
         assert reg_res.status_code == 200
         student_data = reg_res.json()
-        assert student_data["full_name"] == "يوسف محمود إبراهيم"
+        assert student_data["full_name"] == "أحمد أشرف الشوادفي"
         assert student_data["student_id"].startswith("STU-")
         assert student_data["is_active"] is True
         assert student_data["current_level_id"] == 1
 
         # 4. Prevent duplicate registration with same phone
         dup_res = await ac.post("/api/v1/auth/register", json={
-            "full_name": "يوسف محمود إبراهيم",
+            "full_name": "أحمد أشرف الشوادفي",
             "phone_number": unique_phone,
             "password": "password123"
         })
         assert dup_res.status_code == 400
         assert "مسجل بالفعل" in dup_res.json()["detail"]
 
-        # 5. Login
+        # 5. Test specific login errors: wrong phone vs wrong password
+        # A) Wrong Phone
+        bad_phone_login = await ac.post("/api/v1/auth/login", json={
+            "phone_number": "01099999999",
+            "password": "password123"
+        })
+        assert bad_phone_login.status_code == 401
+        assert "خطأ في رقم الهاتف" in bad_phone_login.json()["detail"]
+
+        # B) Wrong Password
+        bad_pass_login = await ac.post("/api/v1/auth/login", json={
+            "phone_number": unique_phone,
+            "password": "wrong_password"
+        })
+        assert bad_pass_login.status_code == 401
+        assert "خطأ في كلمة المرور" in bad_pass_login.json()["detail"]
+
+        # C) Valid Login
         login_res = await ac.post("/api/v1/auth/login", json={
             "phone_number": unique_phone,
             "password": "password123"
