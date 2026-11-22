@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Sparkles, Phone, Lock, User, ArrowRight, ShieldCheck } from 'lucide-react';
+import { Sparkles, Phone, Lock, User, ArrowRight, ShieldCheck, GraduationCap } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 
 export const AuthPage: React.FC = () => {
@@ -8,17 +8,8 @@ export const AuthPage: React.FC = () => {
   const [fullName, setFullName] = useState('');
   const [phoneNumber, setPhoneNumber] = useState('');
   const [password, setPassword] = useState('');
-  const [avatar, setAvatar] = useState('lion');
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
-
-  const avatars = [
-    { id: 'lion', emoji: '🦁', name: 'الأسد' },
-    { id: 'panda', emoji: '🐼', name: 'الباندا' },
-    { id: 'bunny', emoji: '🐰', name: 'الأرنب' },
-    { id: 'fox', emoji: '🦊', name: 'الثعلب' },
-    { id: 'monkey', emoji: '🐵', name: 'القرد' }
-  ];
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -28,13 +19,13 @@ export const AuthPage: React.FC = () => {
     try {
       if (isRegister) {
         if (fullName.trim().split(/\s+/).length < 3) {
-          throw new Error('يرجى إدخال الاسم الثلاثي كاملاً للطفل (مثال: محمد أحمد علي)');
+          throw new Error('يرجى إدخال الاسم الثلاثي كاملاً للطالب (مثال: محمد أحمد علي)');
         }
         await register({
           full_name: fullName.trim(),
           phone_number: phoneNumber.trim(),
           password,
-          avatar
+          avatar: 'student'
         });
       } else {
         await login({
@@ -65,7 +56,7 @@ export const AuthPage: React.FC = () => {
             ABC English
           </h2>
           <p className="text-xs font-bold text-slate-500 mt-1">
-            {isRegister ? 'تسجيل طالب جديد في منصة ABC للأطفال 🌟' : 'أهلاً بك مجدداً في منصة ABC! سجل دخولك 🎒'}
+            {isRegister ? 'تسجيل حساب جديد في منصة ABC التعليمية 🌟' : 'أهلاً بك مجدداً في منصة ABC! سجل دخولك 🎒'}
           </p>
         </div>
 
@@ -78,7 +69,7 @@ export const AuthPage: React.FC = () => {
         <form onSubmit={handleSubmit} className="space-y-4 relative z-10">
           {isRegister && (
             <div>
-              <label className="block text-xs font-black text-slate-700 mb-1">الاسم الثلاثي للطفل:</label>
+              <label className="block text-xs font-black text-slate-700 mb-1">الاسم الثلاثي للطالب:</label>
               <div className="relative">
                 <input
                   type="text"
@@ -124,29 +115,6 @@ export const AuthPage: React.FC = () => {
             </div>
           </div>
 
-          {isRegister && (
-            <div>
-              <label className="block text-xs font-black text-slate-700 mb-2">اختر شخصيتك الكرتونية المفضلة:</label>
-              <div className="flex justify-between gap-1.5">
-                {avatars.map((a) => (
-                  <button
-                    key={a.id}
-                    type="button"
-                    onClick={() => setAvatar(a.id)}
-                    className={`flex-1 p-2.5 rounded-2xl border-2 text-center transition-all ${
-                      avatar === a.id
-                        ? 'border-amber-400 bg-amber-50 scale-105 shadow-md shadow-amber-200'
-                        : 'border-slate-100 bg-slate-50 opacity-70 hover:opacity-100'
-                    }`}
-                  >
-                    <span className="text-2xl block">{a.emoji}</span>
-                    <span className="text-[10px] font-black text-slate-700 block mt-1">{a.name}</span>
-                  </button>
-                ))}
-              </div>
-            </div>
-          )}
-
           <button
             type="submit"
             disabled={loading}
@@ -156,7 +124,7 @@ export const AuthPage: React.FC = () => {
               <span>جاري التحميل...</span>
             ) : (
               <>
-                <span>{isRegister ? 'انطلق في رحلة ABC 🚀' : 'دخول المنصة 🎒'}</span>
+                <span>{isRegister ? 'انطلق في رحلة التعلم 🚀' : 'دخول المنصة 🎒'}</span>
                 <ArrowRight className="w-5 h-5 rotate-180" />
               </>
             )}
@@ -174,7 +142,7 @@ export const AuthPage: React.FC = () => {
           >
             {isRegister
               ? 'لديك حساب بالفعل؟ اضغط هنا لتسجيل الدخول'
-              : 'ليس لديك حساب؟ أنشئ حساب لطفلك الآن مجاناً!'}
+              : 'ليس لديك حساب؟ أنشئ حساباً جديداً للبدء مجاناً!'}
           </button>
         </div>
       </div>

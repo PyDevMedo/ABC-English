@@ -1,18 +1,34 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { 
-  X, Volume2, Sparkles, BookOpen, Layers, CheckCircle2, 
-  ArrowLeft, ArrowRight, Star, Trophy, Mic, Camera, Upload, 
-  AlertCircle, PenTool, Check, RotateCcw
+  X, Volume2, Mic, CheckCircle2, ArrowRight, ArrowLeft, PenTool, 
+  Upload, Camera, RotateCcw, AlertCircle, Sparkles, Star, Check, Lock
 } from 'lucide-react';
+import confetti from 'canvas-confetti';
 import { playAudio, api } from '../services/api';
 import { AudioRecorder } from '../components/AudioRecorder';
-import confetti from 'canvas-confetti';
 
 interface LessonViewModalProps {
   levelId: number;
   onClose: () => void;
   onLessonCompleted?: () => void;
 }
+
+type TabType = 'intro' | 'phonics' | 'words' | 'sentences' | 'lab' | 'handwriting';
+
+interface StepItem {
+  id: TabType;
+  title: string;
+  icon: string;
+}
+
+const STEPS: StepItem[] = [
+  { id: 'intro', title: 'مقدمة الدرس', icon: '📖' },
+  { id: 'phonics', title: 'أصوات الحروف', icon: '🔤' },
+  { id: 'words', title: 'تركيب الكلمات', icon: '🧩' },
+  { id: 'sentences', title: 'قراءة الجمل', icon: '📝' },
+  { id: 'lab', title: 'مختبر النطق', icon: '🤖' },
+  { id: 'handwriting', title: 'واجب الدفتر', icon: '✍️' }
+];
 
 export const LessonViewModal: React.FC<LessonViewModalProps> = ({
   levelId,
@@ -21,7 +37,8 @@ export const LessonViewModal: React.FC<LessonViewModalProps> = ({
 }) => {
   const [levelData, setLevelData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<'intro' | 'phonics' | 'words' | 'sentences' | 'lab' | 'handwriting'>('intro');
+  const [currentStepIdx, setCurrentStepIdx] = useState(0);
+  const [maxUnlockedIdx, setMaxUnlockedIdx] = useState(0);
   const [evaluating, setEvaluating] = useState(false);
   const [evalResult, setEvalResult] = useState<any>(null);
   const [selectedWordForLab, setSelectedWordForLab] = useState<string>('Ship');
@@ -47,6 +64,7 @@ export const LessonViewModal: React.FC<LessonViewModalProps> = ({
         setAssignment(asgData);
         if (asgData?.is_submitted) {
           setHwSubmitted(true);
+          setMaxUnlockedIdx(5);
           if (asgData.image_url) {
             setHwImagePreview(asgData.image_url);
           }
@@ -74,12 +92,29 @@ export const LessonViewModal: React.FC<LessonViewModalProps> = ({
 
   if (!levelData) return null;
 
+  const activeTab = STEPS[currentStepIdx].id;
   const lesson = levelData.lessons?.[0];
   const sections = lesson?.sections || [];
   const introSec = sections.find((s: any) => s.section_type === 'intro');
   const phonicsSec = sections.find((s: any) => s.section_type === 'phonics');
   const wordsSec = sections.find((s: any) => s.section_type === 'words');
   const sentencesSec = sections.find((s: any) => s.section_type === 'sentences');
+
+  const goToNextStep = () => {
+    if (currentStepIdx < STEPS.length - 1) {
+      const nextIdx = currentStepIdx + 1;
+      if (nextIdx > maxUnlockedIdx) {
+        setMaxUnlockedIdx(nextIdx);
+      }
+      setCurrentStepIdx(nextIdx);
+    }
+  };
+
+  const goToPrevStep = () => {
+    if (currentStepIdx > 0) {
+      setCurrentStepIdx(currentStepIdx - 1);
+    }
+  };
 
   const handlePronunciationRecord = async (blob: Blob) => {
     setEvaluating(true);
@@ -138,7 +173,7 @@ export const LessonViewModal: React.FC<LessonViewModalProps> = ({
 
   const finishLesson = async () => {
     if (!hwSubmitted) {
-      setActiveTab('handwriting');
+      setCurrentStepIdx(5); // Switch to handwriting
       return;
     }
     if (lesson?.id) {
@@ -172,62 +207,38 @@ export const LessonViewModal: React.FC<LessonViewModalProps> = ({
           </button>
         </div>
 
-        {/* Lesson Tabs Navigation */}
-        <div className="flex border-b-2 border-amber-100 bg-amber-50/70 p-2 gap-1 overflow-x-auto shrink-0 scrollbar-none">
-          <button
-            onClick={() => setActiveTab('intro')}
-            className={`px-3.5 py-2 rounded-2xl text-xs sm:text-sm font-bold whitespace-nowrap transition-all ${
-              activeTab === 'intro' ? 'bg-amber-400 text-amber-950 shadow-sm' : 'text-slate-600 hover:bg-white'
-            }`}
-          >
-            📖 مقدمة القصة
-          </button>
-          <button
-            onClick={() => setActiveTab('phonics')}
-            className={`px-3.5 py-2 rounded-2xl text-xs sm:text-sm font-bold whitespace-nowrap transition-all ${
-              activeTab === 'phonics' ? 'bg-amber-400 text-amber-950 shadow-sm' : 'text-slate-600 hover:bg-white'
-            }`}
-          >
-            🔤 أصوات الحروف
-          </button>
-          <button
-            onClick={() => setActiveTab('words')}
-            className={`px-3.5 py-2 rounded-2xl text-xs sm:text-sm font-bold whitespace-nowrap transition-all ${
-              activeTab === 'words' ? 'bg-amber-400 text-amber-950 shadow-sm' : 'text-slate-600 hover:bg-white'
-            }`}
-          >
-            🧩 تركيب الكلمات
-          </button>
-          <button
-            onClick={() => setActiveTab('sentences')}
-            className={`px-3.5 py-2 rounded-2xl text-xs sm:text-sm font-bold whitespace-nowrap transition-all ${
-              activeTab === 'sentences' ? 'bg-amber-400 text-amber-950 shadow-sm' : 'text-slate-600 hover:bg-white'
-            }`}
-          >
-            📝 الجمل والكلمات البصرية
-          </button>
-          <button
-            onClick={() => setActiveTab('lab')}
-            className={`px-3.5 py-2 rounded-2xl text-xs sm:text-sm font-bold whitespace-nowrap transition-all ${
-              activeTab === 'lab' ? 'bg-purple-500 text-white shadow-sm' : 'text-purple-700 bg-purple-50 hover:bg-purple-100'
-            }`}
-          >
-            🤖 مختبر النطق
-          </button>
-          <button
-            onClick={() => setActiveTab('handwriting')}
-            className={`px-3.5 py-2 rounded-2xl text-xs sm:text-sm font-black whitespace-nowrap transition-all flex items-center gap-1.5 ${
-              activeTab === 'handwriting'
-                ? 'bg-gradient-to-r from-rose-500 to-orange-500 text-white shadow-md shadow-rose-200'
-                : hwSubmitted
-                ? 'bg-emerald-100 text-emerald-800'
-                : 'bg-rose-100 text-rose-800 hover:bg-rose-200 animate-pulse'
-            }`}
-          >
-            <PenTool className="w-4 h-4" />
-            <span>✍️ واجب الدفتر (إجباري)</span>
-            {hwSubmitted && <Check className="w-3.5 h-3.5 text-emerald-600 stroke-[3]" />}
-          </button>
+        {/* Sequential Step Indicator Navigation */}
+        <div className="flex border-b-2 border-amber-100 bg-amber-50/70 p-2 gap-1.5 overflow-x-auto shrink-0 scrollbar-none">
+          {STEPS.map((step, idx) => {
+            const isCurrent = idx === currentStepIdx;
+            const isUnlocked = idx <= maxUnlockedIdx;
+
+            return (
+              <button
+                key={step.id}
+                type="button"
+                disabled={!isUnlocked}
+                onClick={() => {
+                  if (isUnlocked) setCurrentStepIdx(idx);
+                }}
+                className={`px-3 py-2 rounded-2xl text-xs sm:text-sm font-black whitespace-nowrap transition-all flex items-center gap-1.5 ${
+                  isCurrent
+                    ? 'bg-amber-400 text-amber-950 shadow-md scale-102'
+                    : isUnlocked
+                    ? 'bg-white/80 text-slate-700 hover:bg-white shadow-xs'
+                    : 'bg-slate-100 text-slate-400 opacity-60 cursor-not-allowed'
+                }`}
+              >
+                <span>{step.icon}</span>
+                <span>{step.title}</span>
+                {!isUnlocked ? (
+                  <Lock className="w-3.5 h-3.5 text-slate-400" />
+                ) : idx < currentStepIdx ? (
+                  <Check className="w-3.5 h-3.5 text-emerald-600 stroke-[3]" />
+                ) : null}
+              </button>
+            );
+          })}
         </div>
 
         {/* Modal Body Content */}
@@ -238,17 +249,21 @@ export const LessonViewModal: React.FC<LessonViewModalProps> = ({
               <div className="w-20 h-20 bg-amber-100 rounded-3xl mx-auto flex items-center justify-center text-4xl shadow-inner border-2 border-amber-300">
                 ✨
               </div>
-              <h4 className="text-2xl font-black text-slate-800">مرحباً بك يا بطل في هذا المستوى!</h4>
+              <h4 className="text-2xl font-black text-slate-800">مرحباً بك في هذا المستوى!</h4>
               <p className="text-base text-slate-700 leading-relaxed font-bold bg-amber-50 p-6 rounded-3xl border-2 border-amber-200">
-                {introSec?.content_json?.text_ar || levelData.description}
+                {introSec?.content_json?.intro_text || levelData.description}
               </p>
-              <button
-                onClick={() => setActiveTab('phonics')}
-                className="kid-button-primary px-8 py-3 text-base mx-auto mt-4"
-              >
-                <span>ابدأ استكشاف الأصوات</span>
-                <ArrowLeft className="w-5 h-5" />
-              </button>
+              
+              <div className="pt-4">
+                <button
+                  type="button"
+                  onClick={goToNextStep}
+                  className="kid-button-primary px-8 py-3 text-base mx-auto flex items-center gap-2"
+                >
+                  <span>الخطوة التالية: استكشاف أصوات الحروف</span>
+                  <ArrowLeft className="w-5 h-5" />
+                </button>
+              </div>
             </div>
           )}
 
@@ -256,31 +271,50 @@ export const LessonViewModal: React.FC<LessonViewModalProps> = ({
           {activeTab === 'phonics' && (
             <div>
               <div className="text-center mb-6">
-                <h4 className="text-xl font-black text-slate-800">استمع لأصوات الحروف السحرية 🎵</h4>
-                <p className="text-xs text-slate-500 font-bold">اضغط على أي حرف لسماع صوته الواضح باللهجة الأمريكية</p>
+                <h4 className="text-xl font-black text-slate-800">استمع لأصوات الحروف 🎵</h4>
+                <p className="text-xs text-slate-500 font-bold">اضغط على أي حرف لسماع صوته مباشرة دون إضافات</p>
               </div>
 
-              <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 mb-6">
                 {phonicsSec?.content_json?.letters?.map((letter: any, idx: number) => (
                   <div
                     key={idx}
-                    onClick={() => playAudio(undefined, `${letter.name}, sound: ${letter.symbol}`)}
-                    className="kid-card p-4 text-center cursor-pointer border-sky-300 hover:border-amber-400 group"
+                    onClick={() => playAudio(undefined, letter.symbol)}
+                    className="kid-card p-4 text-center cursor-pointer border-sky-300 hover:border-amber-400 group transition-all"
                   >
                     <div className="text-4xl sm:text-5xl font-black font-fredoka text-sky-600 group-hover:scale-110 transition-transform mb-2">
                       {letter.symbol}
                     </div>
-                    <div className="text-xs font-black text-slate-800 mb-1">{letter.name}</div>
+                    <div className="text-xs font-black text-slate-800 mb-1">{letter.sound_name || letter.symbol}</div>
                     <div className="text-[11px] text-amber-700 font-bold mb-3">{letter.arabic_desc}</div>
                     <button
                       type="button"
                       className="w-full py-1.5 bg-sky-100 hover:bg-sky-200 text-sky-700 rounded-xl text-xs font-bold flex items-center justify-center gap-1"
                     >
                       <Volume2 className="w-4 h-4" />
-                      استمع
+                      استمع للصوت
                     </button>
                   </div>
                 ))}
+              </div>
+
+              <div className="flex justify-between items-center pt-4 border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={goToPrevStep}
+                  className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl text-xs flex items-center gap-1"
+                >
+                  <ArrowRight className="w-4 h-4" />
+                  <span>السابق</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={goToNextStep}
+                  className="kid-button-primary px-6 py-2.5 text-xs font-black flex items-center gap-1.5"
+                >
+                  <span>الخطوة التالية: دمج وقراءة الكلمات</span>
+                  <ArrowLeft className="w-4 h-4" />
+                </button>
               </div>
             </div>
           )}
@@ -293,7 +327,7 @@ export const LessonViewModal: React.FC<LessonViewModalProps> = ({
                 <p className="text-xs text-slate-500 font-bold">استمع لتفكيك الأصوات وقراءة الكلمة كاملة</p>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 mb-6">
                 {wordsSec?.content_json?.words?.map((w: any, idx: number) => (
                   <div
                     key={idx}
@@ -324,7 +358,7 @@ export const LessonViewModal: React.FC<LessonViewModalProps> = ({
                         type="button"
                         onClick={() => {
                           setSelectedWordForLab(w.word);
-                          setActiveTab('lab');
+                          setCurrentStepIdx(4); // Switch to Lab
                         }}
                         className="py-2 px-3 bg-purple-100 hover:bg-purple-200 text-purple-800 font-bold rounded-xl text-xs flex items-center justify-center"
                         title="تدرب على نطق هذه الكلمة"
@@ -335,70 +369,121 @@ export const LessonViewModal: React.FC<LessonViewModalProps> = ({
                   </div>
                 ))}
               </div>
+
+              <div className="flex justify-between items-center pt-4 border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={goToPrevStep}
+                  className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl text-xs flex items-center gap-1"
+                >
+                  <ArrowRight className="w-4 h-4" />
+                  <span>السابق</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={goToNextStep}
+                  className="kid-button-primary px-6 py-2.5 text-xs font-black flex items-center gap-1.5"
+                >
+                  <span>الخطوة التالية: قراءة الجمل</span>
+                  <ArrowLeft className="w-4 h-4" />
+                </button>
+              </div>
             </div>
           )}
 
-          {/* TAB 4: SENTENCES & SIGHT WORDS */}
+          {/* TAB 4: SENTENCES */}
           {activeTab === 'sentences' && (
-            <div className="space-y-6">
-              <div>
-                <h5 className="text-base font-black text-slate-800 mb-3 flex items-center gap-2">
-                  <Star className="w-5 h-5 text-amber-500 fill-amber-400" />
-                  الكلمات البصرية (Sight Words):
-                </h5>
-                <div className="flex flex-wrap gap-2">
-                  {sentencesSec?.content_json?.sight_words?.map((sw: string, idx: number) => (
-                    <button
-                      key={idx}
-                      onClick={() => playAudio(undefined, sw)}
-                      className="px-4 py-2 bg-rose-100 hover:bg-rose-200 text-rose-800 rounded-2xl font-black font-fredoka text-base border-2 border-rose-300 flex items-center gap-1.5 transition-all"
-                    >
-                      <Volume2 className="w-4 h-4" />
-                      {sw}
-                    </button>
-                  ))}
-                </div>
+            <div>
+              <div className="text-center mb-6">
+                <h4 className="text-xl font-black text-slate-800">قراءة الجمل البسيطة 📝</h4>
+                <p className="text-xs text-slate-500 font-bold">اقرأ الجملة كاملة واستمع لنطقها النموذجي</p>
               </div>
 
-              <div>
-                <h5 className="text-base font-black text-slate-800 mb-3">الجمل القصيرة للقراءة:</h5>
-                <div className="space-y-3">
-                  {sentencesSec?.content_json?.sentences?.map((st: any, idx: number) => (
-                    <div
-                      key={idx}
-                      className="bg-white p-4 rounded-2xl border-2 border-slate-200 flex items-center justify-between gap-4 shadow-sm"
-                    >
-                      <div>
-                        <span className="text-lg font-black font-fredoka text-slate-800 block text-left" dir="ltr">
-                          {st.text}
-                        </span>
-                        <span className="text-xs font-bold text-slate-500">{st.translation_ar}</span>
+              <div className="space-y-3 max-w-xl mx-auto mb-6">
+                {sentencesSec?.content_json?.sentences?.map((s: any, idx: number) => (
+                  <div
+                    key={idx}
+                    className="p-4 rounded-2xl bg-white border-2 border-indigo-100 hover:border-indigo-300 flex items-center justify-between shadow-sm transition-all"
+                  >
+                    <div>
+                      <div className="text-xl font-black font-fredoka text-slate-900 mb-1" dir="ltr">
+                        {s.text}
                       </div>
-                      <button
-                        type="button"
-                        onClick={() => playAudio(undefined, st.text)}
-                        className="w-10 h-10 rounded-xl bg-amber-100 hover:bg-amber-200 text-amber-800 flex items-center justify-center shrink-0"
-                      >
-                        <Volume2 className="w-5 h-5" />
-                      </button>
+                      <div className="text-xs font-bold text-slate-500">{s.translation_ar}</div>
                     </div>
-                  ))}
-                </div>
+                    <button
+                      type="button"
+                      onClick={() => playAudio(s.audio_url, s.text)}
+                      className="p-3 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 rounded-2xl transition-colors"
+                      title="استمع للجملة"
+                    >
+                      <Volume2 className="w-5 h-5" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+
+              <div className="flex justify-between items-center pt-4 border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={goToPrevStep}
+                  className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl text-xs flex items-center gap-1"
+                >
+                  <ArrowRight className="w-4 h-4" />
+                  <span>السابق</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={goToNextStep}
+                  className="kid-button-primary px-6 py-2.5 text-xs font-black flex items-center gap-1.5"
+                >
+                  <span>الخطوة التالية: مختبر النطق الذكي</span>
+                  <ArrowLeft className="w-4 h-4" />
+                </button>
               </div>
             </div>
           )}
 
           {/* TAB 5: AI PRONUNCIATION LAB */}
           {activeTab === 'lab' && (
-            <div className="space-y-6">
-              <div className="bg-purple-50 p-6 rounded-3xl border-2 border-purple-200 text-center">
-                <span className="text-xs font-black text-purple-700 bg-purple-200/60 px-3 py-1 rounded-full mb-2 inline-block">
-                  الكلمة المختارة للتحدي:
+            <div className="space-y-6 max-w-xl mx-auto">
+              <div className="text-center">
+                <span className="px-3 py-1 bg-purple-100 text-purple-800 rounded-full text-xs font-black mb-2 inline-block">
+                  مدرس الذكاء الاصطناعي 🎙️
                 </span>
-                <div className="text-4xl font-black font-fredoka text-purple-950 my-2 tracking-wide">
-                  {selectedWordForLab}
+                <h4 className="text-xl font-black text-slate-800">مختبر تحليل النطق الصوتي</h4>
+                <p className="text-xs text-slate-500 font-bold">سجل صوتك وسيقوم الذكاء الاصطناعي بتحليل أصوات الحروف ومخارجها بدقة</p>
+              </div>
+
+              {/* Word Selector */}
+              <div className="flex flex-wrap gap-2 justify-center">
+                {wordsSec?.content_json?.words?.map((w: any, idx: number) => (
+                  <button
+                    key={idx}
+                    type="button"
+                    onClick={() => {
+                      setSelectedWordForLab(w.word);
+                      setEvalResult(null);
+                    }}
+                    className={`px-3.5 py-1.5 rounded-xl font-fredoka font-bold text-sm transition-all ${
+                      selectedWordForLab === w.word
+                        ? 'bg-purple-600 text-white shadow-md shadow-purple-200'
+                        : 'bg-slate-100 text-slate-700 hover:bg-purple-50'
+                    }`}
+                  >
+                    {w.word}
+                  </button>
+                ))}
+              </div>
+
+              {/* Target Word Focus Banner */}
+              <div className="bg-purple-50 rounded-2xl p-4 border border-purple-200 text-center flex items-center justify-between">
+                <div>
+                  <span className="text-xs font-bold text-purple-700">الكلمة المستهدفة:</span>
+                  <div className="text-3xl font-black font-fredoka text-purple-900">{selectedWordForLab}</div>
                 </div>
                 <button
+                  type="button"
                   onClick={() => playAudio(undefined, selectedWordForLab)}
                   className="inline-flex items-center gap-1.5 text-xs font-bold text-purple-700 bg-white px-3 py-1.5 rounded-xl shadow-sm hover:bg-purple-100"
                 >
@@ -446,10 +531,29 @@ export const LessonViewModal: React.FC<LessonViewModalProps> = ({
                   </div>
                 </div>
               )}
+
+              <div className="flex justify-between items-center pt-4 border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={goToPrevStep}
+                  className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl text-xs flex items-center gap-1"
+                >
+                  <ArrowRight className="w-4 h-4" />
+                  <span>السابق</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={goToNextStep}
+                  className="kid-button-primary px-6 py-2.5 text-xs font-black flex items-center gap-1.5"
+                >
+                  <span>الخطوة التالية: واجب الخط الورقي (إجباري) ✍️</span>
+                  <ArrowLeft className="w-4 h-4" />
+                </button>
+              </div>
             </div>
           )}
 
-          {/* TAB 6: MANDATORY HANDWRITING HOMEWORK (واجب الكتابة الورقية وتصوير الدفتر) */}
+          {/* TAB 6: MANDATORY HANDWRITING HOMEWORK */}
           {activeTab === 'handwriting' && (
             <div className="space-y-6">
               {/* Mandatory Alert Banner */}
@@ -479,7 +583,6 @@ export const LessonViewModal: React.FC<LessonViewModalProps> = ({
                 <div className="bg-amber-50/40 rounded-2xl p-5 border border-amber-200 space-y-4 font-fredoka">
                   {assignment?.target_words?.map((w: string, i: number) => (
                     <div key={i} className="relative py-2 border-b-2 border-slate-200 select-none">
-                      {/* 4 dashed guide lines */}
                       <div className="absolute inset-0 flex flex-col justify-between pointer-events-none opacity-20">
                         <div className="border-b border-rose-500 w-full"></div>
                         <div className="border-b border-dashed border-sky-500 w-full"></div>
@@ -524,7 +627,6 @@ export const LessonViewModal: React.FC<LessonViewModalProps> = ({
 
               {/* Photo Upload & Camera Action Box */}
               <div className="bg-slate-50 p-6 rounded-3xl border-2 border-dashed border-slate-300 text-center space-y-4">
-                {/* Hidden Inputs for Camera and File Picker */}
                 <input
                   type="file"
                   accept="image/*"
@@ -542,7 +644,6 @@ export const LessonViewModal: React.FC<LessonViewModalProps> = ({
                 />
 
                 {hwImagePreview ? (
-                  /* Image Preview */
                   <div className="space-y-4 max-w-sm mx-auto">
                     <div className="relative rounded-2xl overflow-hidden border-4 border-white shadow-xl max-h-72">
                       <img
@@ -554,7 +655,7 @@ export const LessonViewModal: React.FC<LessonViewModalProps> = ({
                         <div className="absolute inset-0 bg-emerald-950/60 backdrop-blur-xs flex flex-col items-center justify-center text-white p-4">
                           <CheckCircle2 className="w-12 h-12 text-emerald-400 mb-1" />
                           <span className="font-black text-base">تم اعتماد وتسليم الواجب!</span>
-                          <span className="text-xs opacity-90">وصلت الصورة فوراً للمدرس عبر Telegram</span>
+                          <span className="text-xs opacity-90">وصلت الصورة فوراً للمعلم عبر Telegram</span>
                         </div>
                       )}
                     </div>
@@ -578,13 +679,12 @@ export const LessonViewModal: React.FC<LessonViewModalProps> = ({
                           disabled={hwSubmitting}
                           className="kid-button-green px-6 py-2 text-xs font-black"
                         >
-                          {hwSubmitting ? 'جاري الرفع...' : 'تسليم الصورة للمدرس 🚀'}
+                          {hwSubmitting ? 'جاري الرفع...' : 'تسليم الصورة للمعلم 🚀'}
                         </button>
                       </div>
                     )}
                   </div>
                 ) : (
-                  /* Action Buttons to Capture or Select */
                   <div className="space-y-3">
                     <p className="text-xs font-black text-slate-700">
                       اختر طريقة تصوير كراستك الآن:
@@ -618,6 +718,7 @@ export const LessonViewModal: React.FC<LessonViewModalProps> = ({
         {/* Modal Footer */}
         <div className="bg-slate-50 border-t-2 border-slate-100 p-4 flex flex-col sm:flex-row items-center justify-between gap-3 shrink-0">
           <button
+            type="button"
             onClick={onClose}
             className="px-4 py-2 text-slate-500 font-bold text-xs hover:text-slate-800"
           >
@@ -633,6 +734,7 @@ export const LessonViewModal: React.FC<LessonViewModalProps> = ({
             )}
 
             <button
+              type="button"
               onClick={finishLesson}
               disabled={completed}
               className={`px-6 py-2.5 text-xs font-black rounded-2xl transition-all flex items-center gap-1.5 ${

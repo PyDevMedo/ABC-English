@@ -60,7 +60,7 @@ export const PronunciationPage: React.FC = () => {
           AI Pronunciation Assessment
         </span>
         <h2 className="text-3xl md:text-4xl font-black font-fredoka">
-          مدرس النطق الذكي للأطفال
+          مدرس النطق الذكي للطلاب
         </h2>
         <p className="text-xs md:text-sm font-bold text-purple-100 mt-2 max-w-lg mx-auto">
           تحليل صوتي دقيق لكل Phoneme مع مقارنة النطق النموذجي وتوجيهك خطوة بخطوة 🎤

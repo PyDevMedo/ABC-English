@@ -1,11 +1,14 @@
 import React, { useEffect, useState } from 'react';
-import { Layers, Lock, Play, Star, CheckCircle, Sparkles } from 'lucide-react';
+import { 
+  Layers, Lock, Play, Star, CheckCircle, Sparkles, BookOpen, 
+  Award, ArrowLeft, CheckCircle2, ShieldCheck, PenTool, Mic
+} from 'lucide-react';
 import { api } from '../services/api';
 import { LessonViewModal } from './LessonViewModal';
 import { useAuth } from '../context/AuthContext';
 
 export const LevelsPage: React.FC = () => {
-  const { refreshUser } = useAuth();
+  const { user, refreshUser } = useAuth();
   const [levels, setLevels] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedLevelId, setSelectedLevelId] = useState<number | null>(null);
@@ -22,93 +25,113 @@ export const LevelsPage: React.FC = () => {
     loadLevels();
   }, []);
 
-  const getLevelColor = (levelNum: number) => {
-    switch (levelNum) {
-      case 1: return { bg: 'from-amber-400 to-amber-500', border: 'border-amber-300', text: 'text-amber-600', pill: 'bg-amber-100 text-amber-900' };
-      case 2: return { bg: 'from-sky-400 to-sky-500', border: 'border-sky-300', text: 'text-sky-600', pill: 'bg-sky-100 text-sky-900' };
-      case 3: return { bg: 'from-emerald-400 to-emerald-500', border: 'border-emerald-300', text: 'text-emerald-600', pill: 'bg-emerald-100 text-emerald-900' };
-      case 4: return { bg: 'from-purple-400 to-purple-500', border: 'border-purple-300', text: 'text-purple-600', pill: 'bg-purple-100 text-purple-900' };
-      case 5: return { bg: 'from-rose-400 to-rose-500', border: 'border-rose-300', text: 'text-rose-600', pill: 'bg-rose-100 text-rose-900' };
-      case 6: return { bg: 'from-indigo-400 to-indigo-500', border: 'border-indigo-300', text: 'text-indigo-600', pill: 'bg-indigo-100 text-indigo-900' };
-      case 7: return { bg: 'from-teal-400 to-teal-500', border: 'border-teal-300', text: 'text-teal-600', pill: 'bg-teal-100 text-teal-900' };
-      default: return { bg: 'from-yellow-400 to-amber-500', border: 'border-yellow-300', text: 'text-yellow-600', pill: 'bg-yellow-100 text-yellow-900' };
-    }
-  };
+  const currentLevelNum = user?.current_level_id || 1;
+  const currentLevel = levels.find((l) => l.level_number === currentLevelNum) || levels[0];
 
   return (
-    <div className="max-w-7xl mx-auto px-4 py-8 space-y-8">
+    <div className="max-w-5xl mx-auto px-4 py-8 space-y-8">
+      {/* Header */}
       <div className="text-center max-w-2xl mx-auto">
-        <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-200 text-amber-900 text-xs font-black mb-2">
-          <Sparkles className="w-4 h-4" />
-          منهج Phonics المتدرج للأطفال
+        <span className="inline-flex items-center gap-1.5 px-3.5 py-1 rounded-full bg-amber-100 text-amber-900 text-xs font-black mb-3 border border-amber-300">
+          <Sparkles className="w-4 h-4 text-amber-600" />
+          منهج Phonics المتدرج للطلاب
         </span>
         <h2 className="text-3xl md:text-4xl font-black text-slate-800 font-fredoka">
-          المستويات التعليمية الثمانية
+          المستوى التعليمي الحالي
         </h2>
         <p className="text-sm font-bold text-slate-600 mt-2">
-          انتقل خطوة بخطوة من أصوات الحروف الأولى وحتى القراءة والكتابة الشاملة بثقة وإتقان.
+          يتم التركيز على مستواك الحالي خطوة بخطوة حتى تتقن أصوات الحروف والقراءة والكتابة بالكامل.
         </p>
       </div>
 
-      {loading ? (
-        <div className="text-center py-12 font-bold text-slate-400">جاري تحميل خريطة المستويات...</div>
+      {loading || !currentLevel ? (
+        <div className="text-center py-16 font-bold text-slate-400">
+          جاري تجهيز بيانات مستواك الحالي... ⏳
+        </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-          {levels.map((lvl) => {
-            const colors = getLevelColor(lvl.level_number);
-            const isUnlocked = lvl.is_unlocked;
-
-            return (
-              <div
-                key={lvl.id}
-                className={`kid-card p-6 flex flex-col justify-between relative overflow-hidden transition-all ${
-                  isUnlocked ? 'border-amber-300 hover:scale-[1.02]' : 'opacity-70 bg-slate-100 border-slate-300'
-                }`}
-              >
-                <div>
-                  <div className="flex items-center justify-between mb-3">
-                    <span className={`text-xs font-black px-2.5 py-1 rounded-xl ${colors.pill}`}>
-                      Level {lvl.level_number}
-                    </span>
-                    {!isUnlocked ? (
-                      <span className="p-1.5 bg-slate-200 text-slate-500 rounded-xl" title="مقفول">
-                        <Lock className="w-4 h-4" />
-                      </span>
-                    ) : (
-                      <span className="p-1.5 bg-emerald-100 text-emerald-600 rounded-xl" title="متاح للدراسة">
-                        <CheckCircle className="w-4 h-4" />
-                      </span>
-                    )}
-                  </div>
-
-                  <h3 className="text-lg font-black text-slate-900 font-fredoka mb-1">
-                    {lvl.title}
-                  </h3>
-                  <h4 className="text-xs font-bold text-slate-600 mb-3">{lvl.subtitle}</h4>
-                  <p className="text-xs text-slate-500 leading-relaxed font-bold line-clamp-3 mb-4">
-                    {lvl.description}
-                  </p>
-                </div>
-
-                <div className="mt-4 pt-4 border-t border-slate-100">
-                  {isUnlocked ? (
-                    <button
-                      type="button"
-                      onClick={() => setSelectedLevelId(lvl.id)}
-                      className="w-full py-2.5 bg-gradient-to-r from-amber-400 to-rose-400 hover:from-amber-500 hover:to-rose-500 text-white font-black rounded-xl text-xs flex items-center justify-center gap-1.5 shadow-md shadow-amber-200 active:scale-95 transition-all"
-                    >
-                      <Play className="w-4 h-4 fill-white" />
-                      <span>فتح الدرس التفاعلي</span>
-                    </button>
-                  ) : (
-                    <div className="text-center py-2 text-xs font-bold text-slate-400 bg-slate-200/50 rounded-xl">
-                      🔒 أكمل المستوى السابق لفتحه
-                    </div>
-                  )}
-                </div>
+        <div className="space-y-6">
+          {/* Main Professional Level Focus Card */}
+          <div className="bg-gradient-to-br from-white to-amber-50/60 rounded-[2.5rem] p-6 sm:p-10 border-2 border-amber-300 shadow-xl shadow-amber-100/50 relative overflow-hidden">
+            {/* Top Level Status Pill */}
+            <div className="flex flex-wrap items-center justify-between gap-3 mb-6">
+              <div className="flex items-center gap-2">
+                <span className="px-4 py-1.5 bg-gradient-to-r from-amber-400 to-rose-400 text-white text-xs font-black rounded-2xl shadow-sm">
+                  المستوى الحالي: Level {currentLevel.level_number}
+                </span>
+                <span className="px-3 py-1 bg-emerald-100 text-emerald-800 text-xs font-black rounded-2xl flex items-center gap-1">
+                  <CheckCircle2 className="w-3.5 h-3.5" />
+                  متاح ومفعل
+                </span>
               </div>
-            );
-          })}
+              <span className="text-xs font-black text-slate-500">
+                منهج ABC المعتمد للغة الإنجليزية
+              </span>
+            </div>
+
+            {/* Level Title & Subtitle */}
+            <div className="mb-8">
+              <h3 className="text-2xl sm:text-4xl font-black text-slate-900 font-fredoka mb-2">
+                {currentLevel.title}
+              </h3>
+              <p className="text-base font-bold text-amber-800 mb-3">
+                {currentLevel.subtitle}
+              </p>
+              <p className="text-sm text-slate-600 font-bold leading-relaxed max-w-3xl">
+                {currentLevel.description}
+              </p>
+            </div>
+
+            {/* Modules / Journey Path inside Current Level */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+              <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm">
+                <div className="w-10 h-10 rounded-xl bg-sky-100 text-sky-600 flex items-center justify-center font-black text-lg mb-2">
+                  🔤
+                </div>
+                <h4 className="text-sm font-black text-slate-800 mb-1">أصوات الحروف</h4>
+                <p className="text-[11px] text-slate-500 font-bold">الاستماع لأصوات الحروف بلهجة أمريكية نقية</p>
+              </div>
+
+              <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm">
+                <div className="w-10 h-10 rounded-xl bg-amber-100 text-amber-600 flex items-center justify-center font-black text-lg mb-2">
+                  🧩
+                </div>
+                <h4 className="text-sm font-black text-slate-800 mb-1">دمج الكلمات</h4>
+                <p className="text-[11px] text-slate-500 font-bold">تركيب الحروف لقراءة الكلمات والجمل بثقة</p>
+              </div>
+
+              <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm">
+                <div className="w-10 h-10 rounded-xl bg-purple-100 text-purple-600 flex items-center justify-center font-black text-lg mb-2">
+                  🎙️
+                </div>
+                <h4 className="text-sm font-black text-slate-800 mb-1">التقييم الصوتي الذكي</h4>
+                <p className="text-[11px] text-slate-500 font-bold">تحليل دقيق لنطقك وتصحيح مخارج الحروف</p>
+              </div>
+
+              <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm">
+                <div className="w-10 h-10 rounded-xl bg-rose-100 text-rose-600 flex items-center justify-center font-black text-lg mb-2">
+                  ✍️
+                </div>
+                <h4 className="text-sm font-black text-slate-800 mb-1">واجب الخط بالدفتر</h4>
+                <p className="text-[11px] text-slate-500 font-bold">كتابة الكلمات على الأسطر الأربعة وتصويرها</p>
+              </div>
+            </div>
+
+            {/* Action Button */}
+            <div className="flex flex-col sm:flex-row items-center justify-between gap-4 pt-6 border-t border-amber-200/60">
+              <div className="text-xs font-black text-slate-600">
+                ⭐ يجب إتمام خطوات الدرس ورفع صورة كراسة الواجب للانتقال للمستوى التالي.
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setSelectedLevelId(currentLevel.id)}
+                className="w-full sm:w-auto px-8 py-4 bg-gradient-to-r from-amber-400 via-orange-500 to-rose-500 hover:opacity-95 text-white font-black rounded-2xl text-sm flex items-center justify-center gap-2 shadow-lg shadow-orange-200 active:scale-95 transition-all"
+              >
+                <Play className="w-5 h-5 fill-white" />
+                <span>دخول الدرس التفاعلي (Level {currentLevel.level_number})</span>
+              </button>
+            </div>
+          </div>
         </div>
       )}
 

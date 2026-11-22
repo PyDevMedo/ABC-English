@@ -59,11 +59,11 @@ export const Navbar: React.FC<NavbarProps> = ({ currentTab, setCurrentTab }) => 
                   ABC English
                 </h1>
                 <span className="text-[10px] font-black bg-amber-100 text-amber-800 px-2 py-0.5 rounded-full border border-amber-300">
-                  AI KIDS
+                  LEARN
                 </span>
               </div>
               <p className="text-[11px] font-bold text-slate-500 hidden sm:block">
-                منصة تعليم الإنجليزية الذكية للأطفال 🌟
+                منصة تعليم الإنجليزية التفاعلية للطلاب 🌟
               </p>
             </div>
           </div>

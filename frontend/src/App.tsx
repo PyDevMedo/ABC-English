@@ -41,7 +41,7 @@ const AppContent: React.FC = () => {
       </main>
 
       <footer className="bg-white border-t border-slate-100 py-6 text-center text-xs text-slate-500 font-bold">
-        <p>منصة ABC لتعليم الإنجليزية للأطفال © {new Date().getFullYear()} — نظام إدارة متكامل عبر Telegram ومدعوم بالذكاء الاصطناعي</p>
+        <p>منصة ABC لتعليم الإنجليزية للطلاب © {new Date().getFullYear()} — نظام إدارة متكامل عبر Telegram ومدعوم بالذكاء الاصطناعي</p>
       </footer>
     </div>
   );

@@ -3,9 +3,14 @@ from typing import List, Optional, Union, Any
 from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+from pathlib import Path
+
+_BASE_DIR = Path(__file__).resolve().parent.parent.parent
+_ROOT_DIR = _BASE_DIR.parent
+
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(
-        env_file=".env",
+        env_file=[str(_ROOT_DIR / ".env"), str(_BASE_DIR / ".env"), ".env"],
         extra="ignore",
         case_sensitive=False
     )

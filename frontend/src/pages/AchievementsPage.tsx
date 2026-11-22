@@ -106,7 +106,7 @@ export const AchievementsPage: React.FC = () => {
             <h4 className="text-2xl font-black font-fredoka text-slate-900">
               شهادة تفوق وإتقان Phonics — منصة ABC
             </h4>
-            <p className="text-xs font-bold text-slate-500 my-2">تُمنح هذه الشهادة المعتمدة للطفل العبقري:</p>
+            <p className="text-xs font-bold text-slate-500 my-2">تُمنح هذه الشهادة المعتمدة للطالب المتميز:</p>
             <div className="text-2xl font-black text-purple-900 border-b-2 border-purple-300 pb-2 max-w-xs mx-auto">
               {user?.full_name}
             </div>
