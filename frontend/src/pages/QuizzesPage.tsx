@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { 
   Award, Volume2, CheckCircle2, XCircle, ArrowLeft, 
-  Sparkles, RotateCcw, Trophy, Star 
+  Sparkles, RotateCcw, Trophy, Star, ShieldCheck, Flame 
 } from 'lucide-react';
 import { api, playAudio } from '../services/api';
 import { useAuth } from '../context/AuthContext';
@@ -63,14 +63,14 @@ export const QuizzesPage: React.FC = () => {
     <div className="max-w-3xl mx-auto px-4 py-8 space-y-8">
       {/* Quiz Header */}
       <div className="bg-gradient-to-r from-rose-500 via-pink-500 to-amber-500 rounded-3xl p-6 text-white shadow-xl text-center relative overflow-hidden">
-        <span className="text-xs font-black bg-white/20 px-3 py-1 rounded-full mb-2 inline-block">
-          Level {currentLevelId} Mastery Quiz
+        <span className="text-xs font-black bg-white/20 px-3.5 py-1 rounded-full mb-2 inline-block">
+          Level {currentLevelId}/50 Mastery Assessment
         </span>
         <h2 className="text-2xl md:text-3xl font-black font-fredoka">
           {levelQuiz?.title || 'اختبار إتقان المستوى'}
         </h2>
         <p className="text-xs font-bold text-rose-100 mt-1">
-          نسبة النجاح لاجتياز المستوى: {levelQuiz?.passing_score || 80}% (احصل على 4 من 5 أو أكثر!)
+          نسبة النجاح لاجتياز الاختبار: {levelQuiz?.passing_score || 80}% • صعوبة تصاعدية مع كل مستوى
         </p>
       </div>
 
@@ -83,7 +83,7 @@ export const QuizzesPage: React.FC = () => {
 
           <div>
             <h3 className="text-3xl font-black text-slate-800">
-              {result.passed ? 'مبارك يا بطل الأبطال!' : 'محاولة ممتازة يا شجاع!'}
+              {result.passed ? 'مبارك! إنجاز واجتياز رائع 🌟' : 'محاولة جيدة، راجع وحاول مرة أخرى!'}
             </h3>
             <div className="text-4xl font-black text-amber-500 my-2 font-fredoka">
               {result.score}%
@@ -93,13 +93,17 @@ export const QuizzesPage: React.FC = () => {
             </p>
           </div>
 
-          {result.passed ? (
+          {result.level_unlocked ? (
             <div className="p-4 bg-emerald-50 rounded-2xl border-2 border-emerald-300 text-emerald-900 font-bold text-sm">
-              🎉 <b>تهانينا!</b> لقد اجتزت شروط الإتقان وتم فتح <b>Level {currentLevelId + 1}</b> لك رسمياً!
+              🎉 <b>تهانينا!</b> لقد حققت شروط الإتقان ومعدل الـ XP المطلوب وتم فتح <b>Level {currentLevelId + 1}</b> لك رسمياً!
+            </div>
+          ) : result.passed ? (
+            <div className="p-4 bg-purple-50 rounded-2xl border-2 border-purple-300 text-purple-900 font-bold text-sm">
+              ⭐ <b>أحسنت!</b> لقد اجتزت الاختبار بنجاح، وتحتاج إلى نقاط خبرة (XP) إضافية للارتقاء للمستوى التالي. واصل التدرب في مختبر النطق وأكمل واجبات الدفتر!
             </div>
           ) : (
             <div className="p-4 bg-amber-50 rounded-2xl border-2 border-amber-300 text-amber-900 font-bold text-sm">
-              تحتاج إلى 80% لاجتياز المستوى، راجع الكلمات وحاول مرة أخرى بكل ثقة!
+              تحتاج إلى 80% لاجتياز الاختبار، استمع للكلمات جيداً وحاول مرة أخرى بكل ثقة!
             </div>
           )}
 
@@ -117,7 +121,7 @@ export const QuizzesPage: React.FC = () => {
                 >
                   <div>
                     <span className="block font-black mb-0.5">{item.question}</span>
-                    <span className="text-[11px] opacity-80">إجابتك: {item.child_answer || 'لم تجب'}</span>
+                    <span className="text-[11px] opacity-80">إجابتك: {item.student_answer || item.child_answer || 'لم تجب'}</span>
                   </div>
                   <span className="shrink-0 text-base">{item.is_correct ? '✓' : '✗'}</span>
                 </div>
@@ -148,16 +152,16 @@ export const QuizzesPage: React.FC = () => {
                   {q.audio_url && (
                     <button
                       type="button"
-                      onClick={() => playAudio(q.audio_url, q.options?.[0])}
-                      className="px-3 py-1.5 bg-amber-100 hover:bg-amber-200 text-amber-900 rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-sm"
+                      onClick={() => playAudio(q.audio_url, q.correct_answer)}
+                      className="px-3.5 py-1.5 bg-amber-100 hover:bg-amber-200 text-amber-900 rounded-xl text-xs font-black flex items-center gap-1.5 shadow-sm active:scale-95 transition-all"
                     >
-                      <Volume2 className="w-4 h-4" />
-                      استمع للصوت 🔊
+                      <Volume2 className="w-4 h-4 text-amber-700" />
+                      <span>استمع للمقطع الصوتي 🔊</span>
                     </button>
                   )}
                 </div>
 
-                <h4 className="text-base font-black text-slate-900 mb-4">{q.question_text}</h4>
+                <h4 className="text-base font-black text-slate-900 mb-4 whitespace-pre-line">{q.question_text}</h4>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   {q.options?.map((opt: string, optIdx: number) => {

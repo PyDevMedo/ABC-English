@@ -6,6 +6,14 @@ from app.core.config import settings
 
 logger = logging.getLogger(__name__)
 
+# Custom Emoji IDs from D:\bots\ايموجي مميز\id الإيموجي .txt
+EMOJI_CHECK = "6039356946031582644"
+EMOJI_STAR = "6039367245363161212"
+EMOJI_ALERT = "6039409709704814287"
+EMOJI_STUDENT = "6039640735995666163"
+EMOJI_CAMERA = "6039643566379114876"
+EMOJI_SPARKLES = "6039709764710047914"
+
 async def send_telegram_message(
     chat_id: str | int,
     text: str,
@@ -82,29 +90,28 @@ async def notify_admins_new_student(
     level_num: int = 1,
     is_active: bool = True
 ):
-    """Notify all configured Telegram Admins when a new child registers"""
+    """Notify all configured Telegram Admins when a new student registers with rich formatting"""
     text = (
-        f"🌟 <b>تسجيل طالب جديد على المنصة!</b>\n\n"
-        f"👤 <b>الاسم الثلاثي:</b> {full_name}\n"
+        f"<tg-emoji emoji-id=\"{EMOJI_SPARKLES}\">✨</tg-emoji> <b>تسجيل طالب جديد على منصة ABC!</b>\n\n"
+        f"<blockquote>"
+        f"👤 <b>الاسم الثلاثي:</b> <code>{full_name}</code>\n"
         f"📱 <b>رقم الهاتف:</b> <code>{phone_number}</code>\n"
         f"🆔 <b>Student ID:</b> <code>{student_id_str}</code>\n"
-        f"📅 <b>تاريخ التسجيل:</b> {registration_date}\n"
-        f"📚 <b>المستوى الأولي:</b> Level {level_num}\n"
-        f"⚡ <b>حالة الحساب:</b> {'نشط ✅' if is_active else 'قيد المراجعة ⏳'}\n"
+        f"📅 <b>تاريخ التسجيل:</b> <code>{registration_date}</code>\n"
+        f"📚 <b>المستوى الأولي:</b> <b>Level {level_num}/50</b>\n"
+        f"⚡ <b>حالة الحساب:</b> {'نشط ومفعل ✅' if is_active else 'قيد المراجعة ⏳'}\n"
+        f"</blockquote>"
     )
 
     reply_markup = {
         "inline_keyboard": [
             [
-                {"text": "📋 عرض ملف الطالب", "callback_data": f"view_stu_{student_id_str}"},
-                {"text": "🎯 تحديد المستوى", "callback_data": f"set_lvl_{student_id_str}"}
+                {"text": "عرض ملف الطالب", "callback_data": f"view_stu_{student_id_str}", "style": "primary", "icon_custom_emoji_id": EMOJI_STUDENT},
+                {"text": "تحديد المستوى", "callback_data": f"set_lvl_{student_id_str}", "style": "primary", "icon_custom_emoji_id": EMOJI_SPARKLES}
             ],
             [
-                {"text": "⏸️ إيقاف الحساب" if is_active else "✅ تفعيل الحساب", "callback_data": f"toggle_stu_{student_id_str}"},
-                {"text": "📊 تقدم الطالب", "callback_data": f"prog_stu_{student_id_str}"}
-            ],
-            [
-                {"text": "💬 إرسال رسالة لولي الأمر", "callback_data": f"msg_stu_{student_id_str}"}
+                {"text": "إيقاف الحساب" if is_active else "تفعيل الحساب", "callback_data": f"toggle_stu_{student_id_str}", "style": "danger" if is_active else "success", "icon_custom_emoji_id": EMOJI_CHECK},
+                {"text": "تقرير التقدم والـ XP", "callback_data": f"prog_stu_{student_id_str}", "style": "primary", "icon_custom_emoji_id": EMOJI_STAR}
             ]
         ]
     }
@@ -121,31 +128,28 @@ async def notify_ai_teacher_alert(
     total_trials: int,
     notes: str
 ):
-    """Notify Admins & Teachers about AI Teacher diagnostic alert & auto-generated plan"""
+    """Notify Admins & Teachers about AI Teacher diagnostic alert with rich styling"""
     success_rate = int(((total_trials - error_count) / max(1, total_trials)) * 100)
     text = (
-        f"🤖 <b>تقرير المدرس الذكي (AI Pronunciation Alert)</b>\n\n"
-        f"👤 <b>الطالب:</b> {student_name} (<code>{student_id_str}</code>)\n"
-        f"📚 <b>المستوى:</b> {level_name}\n"
-        f"🎯 <b>المهارة:</b> {skill} Pronunciation\n"
-        f"❌ <b>عدد الأخطاء:</b> {error_count} من آخر {total_trials} محاولات\n"
-        f"📊 <b>نسبة النجاح:</b> {success_rate}%\n\n"
-        f"💡 <b>ملاحظة المدرس الذكي:</b>\n{notes}\n\n"
-        f"⚡ <b>الإجراء التلقائي:</b>\nتم إنشاء تدريبات إضافية مخصصة وعزل الصوت للتدريب المكثف."
+        f"<tg-emoji emoji-id=\"{EMOJI_ALERT}\">⚠️</tg-emoji> <b>تقرير وملاحظة المدرس الذكي (AI Pronunciation Alert):</b>\n\n"
+        f"<blockquote>"
+        f"👤 <b>الطالب:</b> <code>{student_name}</code> (<code>{student_id_str}</code>)\n"
+        f"📚 <b>المستوى:</b> <b>{level_name}</b>\n"
+        f"🎯 <b>المهارة الصوتية:</b> <code>{skill}</code>\n"
+        f"❌ <b>الأخطاء المتكررة:</b> {error_count} من أصل {total_trials} محاولات ({success_rate}% إتقان)\n"
+        f"💡 <b>توجيه الذكاء الاصطناعي:</b> <i>{notes}</i>\n"
+        f"</blockquote>"
     )
 
     reply_markup = {
         "inline_keyboard": [
             [
-                {"text": "🎧 الاستماع للمحاولات", "callback_data": f"ai_listen_{student_id_str}"},
-                {"text": "📋 عرض التدريبات", "callback_data": f"ai_plan_{student_id_str}"}
+                {"text": "الاستماع للمحاولات الصوتية", "callback_data": f"ai_listen_{student_id_str}", "style": "primary", "icon_custom_emoji_id": EMOJI_STAR},
+                {"text": "عرض وتعديل الخطة", "callback_data": f"ai_plan_{student_id_str}", "style": "primary", "icon_custom_emoji_id": EMOJI_SPARKLES}
             ],
             [
-                {"text": "✅ اعتماد الخطة", "callback_data": f"ai_approve_{student_id_str}"},
-                {"text": "✏️ تعديل الخطة", "callback_data": f"ai_edit_{student_id_str}"}
-            ],
-            [
-                {"text": "💬 إرسال ملاحظة تشجيعية", "callback_data": f"msg_stu_{student_id_str}"}
+                {"text": "اعتماد الخطة التكيفية", "callback_data": f"ai_approve_{student_id_str}", "style": "success", "icon_custom_emoji_id": EMOJI_CHECK},
+                {"text": "إرسال رسالة تشجيعية", "callback_data": f"msg_stu_{student_id_str}", "style": "primary", "icon_custom_emoji_id": EMOJI_STUDENT}
             ]
         ]
     }
@@ -160,20 +164,22 @@ async def notify_assignment_submission(
     submission_id: int,
     photo_path: Optional[str] = None
 ):
-    """Notify Telegram admin when a homework assignment is handed in (with notebook photo)"""
+    """Notify Telegram admin when a homework notebook photo is submitted"""
     caption = (
-        f"📝 <b>تسليم واجب كتابة ورقية جديد! ✍️</b>\n\n"
-        f"👤 <b>الطالب:</b> {student_name} (<code>{student_id_str}</code>)\n"
-        f"📖 <b>الواجب:</b> {assignment_title}\n"
-        f"📸 <b>المرفق:</b> صورة الدفتر والكتابة اليدوية\n"
-        f"⏰ <b>الحالة:</b> بانتظار مراجعة وتصحيح المعلم"
+        f"<tg-emoji emoji-id=\"{EMOJI_CAMERA}\">📷</tg-emoji> <b>تسليم واجب كتابة ورقية جديد! ✍️</b>\n\n"
+        f"<blockquote>"
+        f"👤 <b>الطالب:</b> <code>{student_name}</code> (<code>{student_id_str}</code>)\n"
+        f"📖 <b>الواجب:</b> <i>{assignment_title}</i>\n"
+        f"📸 <b>المرفق:</b> صورة كراسة تحسين الخط (4 أسطر)\n"
+        f"⏰ <b>الحالة:</b> بانتظار تصحيح ورصد الدرجة\n"
+        f"</blockquote>"
     )
 
     reply_markup = {
         "inline_keyboard": [
             [
-                {"text": "🔍 عرض وتصحيح الواجب", "callback_data": f"sub_rev_{submission_id}"},
-                {"text": "⭐ رصد الدرجة", "callback_data": f"sub_grade_{submission_id}"}
+                {"text": "مراجعة وتصحيح الواجب", "callback_data": f"sub_rev_{submission_id}", "style": "primary", "icon_custom_emoji_id": EMOJI_CAMERA},
+                {"text": "رصد الدرجة فوراً", "callback_data": f"sub_grade_{submission_id}", "style": "success", "icon_custom_emoji_id": EMOJI_CHECK}
             ]
         ]
     }

@@ -43,6 +43,19 @@ export const LessonViewModal: React.FC<LessonViewModalProps> = ({
   const [evalResult, setEvalResult] = useState<any>(null);
   const [selectedWordForLab, setSelectedWordForLab] = useState<string>('Ship');
   const [completed, setCompleted] = useState(false);
+  const [repetitions, setRepetitions] = useState<Record<string, number>>({});
+
+  const trackRepetition = (key: string, audioUrl?: string, fallbackText?: string) => {
+    playAudio(audioUrl, fallbackText);
+    setRepetitions(prev => {
+      const current = prev[key] || 0;
+      const nextVal = Math.min(3, current + 1);
+      if (nextVal === 3 && current < 3) {
+        confetti({ particleCount: 35, spread: 50, origin: { y: 0.8 } });
+      }
+      return { ...prev, [key]: nextVal };
+    });
+  };
 
   // Handwriting Homework State
   const [assignment, setAssignment] = useState<any>(null);
@@ -328,46 +341,61 @@ export const LessonViewModal: React.FC<LessonViewModalProps> = ({
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 mb-6">
-                {wordsSec?.content_json?.words?.map((w: any, idx: number) => (
-                  <div
-                    key={idx}
-                    className="kid-card p-5 border-amber-200 text-center relative group"
-                  >
-                    <div className="text-3xl font-black font-fredoka text-slate-800 mb-1">
-                      {w.word}
-                    </div>
-                    <div className="flex justify-center gap-1.5 my-2">
-                      {w.phonemes.split('-').map((p: string, pIdx: number) => (
-                        <span key={pIdx} className="bg-amber-100 text-amber-900 font-fredoka text-xs font-bold px-2 py-0.5 rounded-lg border border-amber-300">
-                          {p}
+                {wordsSec?.content_json?.words?.map((w: any, idx: number) => {
+                  const reps = repetitions[w.word] || 0;
+                  return (
+                    <div
+                      key={idx}
+                      className="kid-card p-5 border-amber-200 text-center relative group"
+                    >
+                      <div className="text-3xl font-black font-fredoka text-slate-800 mb-1">
+                        {w.word}
+                      </div>
+                      <div className="flex justify-center gap-1.5 my-2">
+                        {w.phonemes.split('-').map((p: string, pIdx: number) => (
+                          <span key={pIdx} className="bg-amber-100 text-amber-900 font-fredoka text-xs font-bold px-2 py-0.5 rounded-lg border border-amber-300">
+                            {p}
+                          </span>
+                        ))}
+                      </div>
+                      <div className="text-sm font-bold text-slate-600 mb-2">{w.translation_ar}</div>
+                      
+                      {/* Repetition Indicator Badge */}
+                      <div className="flex items-center justify-center gap-1.5 mb-3">
+                        <span className="text-[10px] font-black text-slate-500">التكرار للحفظ:</span>
+                        <span className={`text-[10px] font-black px-2 py-0.5 rounded-full ${
+                          reps >= 3
+                            ? 'bg-emerald-100 text-emerald-800 border border-emerald-300'
+                            : 'bg-amber-100 text-amber-900 border border-amber-300'
+                        }`}>
+                          {reps} / 3 {reps >= 3 ? '✅' : '🔁'}
                         </span>
-                      ))}
+                      </div>
+
+                      <div className="flex gap-2">
+                        <button
+                          type="button"
+                          onClick={() => trackRepetition(w.word, w.audio_url, w.word)}
+                          className="flex-1 py-2 bg-amber-400 hover:bg-amber-500 text-amber-950 font-bold rounded-xl text-xs flex items-center justify-center gap-1 shadow-sm active:scale-95"
+                        >
+                          <Volume2 className="w-4 h-4" />
+                          <span>استمع وكرر</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setSelectedWordForLab(w.word);
+                            setCurrentStepIdx(4); // Switch to Lab
+                          }}
+                          className="py-2 px-3 bg-purple-100 hover:bg-purple-200 text-purple-800 font-bold rounded-xl text-xs flex items-center justify-center"
+                          title="تدرب على نطق هذه الكلمة"
+                        >
+                          <Mic className="w-4 h-4" />
+                        </button>
+                      </div>
                     </div>
-                    <div className="text-sm font-bold text-slate-600 mb-4">{w.translation_ar}</div>
-                    
-                    <div className="flex gap-2">
-                      <button
-                        type="button"
-                        onClick={() => playAudio(w.audio_url, w.word)}
-                        className="flex-1 py-2 bg-amber-400 hover:bg-amber-500 text-amber-950 font-bold rounded-xl text-xs flex items-center justify-center gap-1 shadow-sm"
-                      >
-                        <Volume2 className="w-4 h-4" />
-                        استمع
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setSelectedWordForLab(w.word);
-                          setCurrentStepIdx(4); // Switch to Lab
-                        }}
-                        className="py-2 px-3 bg-purple-100 hover:bg-purple-200 text-purple-800 font-bold rounded-xl text-xs flex items-center justify-center"
-                        title="تدرب على نطق هذه الكلمة"
-                      >
-                        <Mic className="w-4 h-4" />
-                      </button>
-                    </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
 
               <div className="flex justify-between items-center pt-4 border-t border-slate-100">
@@ -400,27 +428,37 @@ export const LessonViewModal: React.FC<LessonViewModalProps> = ({
               </div>
 
               <div className="space-y-3 max-w-xl mx-auto mb-6">
-                {sentencesSec?.content_json?.sentences?.map((s: any, idx: number) => (
-                  <div
-                    key={idx}
-                    className="p-4 rounded-2xl bg-white border-2 border-indigo-100 hover:border-indigo-300 flex items-center justify-between shadow-sm transition-all"
-                  >
-                    <div>
-                      <div className="text-xl font-black font-fredoka text-slate-900 mb-1" dir="ltr">
-                        {s.text}
-                      </div>
-                      <div className="text-xs font-bold text-slate-500">{s.translation_ar}</div>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => playAudio(s.audio_url, s.text)}
-                      className="p-3 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 rounded-2xl transition-colors"
-                      title="استمع للجملة"
+                {sentencesSec?.content_json?.sentences?.map((s: any, idx: number) => {
+                  const reps = repetitions[s.text] || 0;
+                  return (
+                    <div
+                      key={idx}
+                      className="p-4 rounded-2xl bg-white border-2 border-indigo-100 hover:border-indigo-300 flex items-center justify-between shadow-sm transition-all"
                     >
-                      <Volume2 className="w-5 h-5" />
-                    </button>
-                  </div>
-                ))}
+                      <div>
+                        <div className="text-xl font-black font-fredoka text-slate-900 mb-1" dir="ltr">
+                          {s.text}
+                        </div>
+                        <div className="text-xs font-bold text-slate-500">{s.translation_ar}</div>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className={`text-[10px] font-black px-2 py-0.5 rounded-full ${
+                          reps >= 3 ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-100 text-slate-600'
+                        }`}>
+                          {reps} / 3 {reps >= 3 ? '✅' : '🔁'}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => trackRepetition(s.text, s.audio_url, s.text)}
+                          className="p-3 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 rounded-2xl transition-colors active:scale-95"
+                          title="استمع وكرر الجملة"
+                        >
+                          <Volume2 className="w-5 h-5" />
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
 
               <div className="flex justify-between items-center pt-4 border-t border-slate-100">
@@ -568,6 +606,18 @@ export const LessonViewModal: React.FC<LessonViewModalProps> = ({
                   حتى تثبت الحروف والكلمات في ذاكرتك، أحضر كراسة اللغة الإنجليزية الخاصة بك واكتب الكلمات بخطك الجميل، ثم التقط صورة لدفترك وارفعها هنا!
                 </p>
               </div>
+
+              {/* Dynamic Level-Specific Homework Instructions */}
+              {assignment?.instructions_ar && (
+                <div className="bg-amber-50 p-5 rounded-2xl border-2 border-amber-300 text-right shadow-sm">
+                  <span className="text-xs font-black text-amber-900 block mb-1">
+                    📌 المطلوب كتابته في كراستك لهذا المستوى تحديداً:
+                  </span>
+                  <p className="text-sm font-bold text-slate-800 leading-relaxed">
+                    {assignment.instructions_ar}
+                  </p>
+                </div>
+              )}
 
               {/* 4-Lines Handwriting Guide Sheet Simulation */}
               <div className="bg-white rounded-3xl p-6 border-2 border-slate-200 shadow-sm space-y-4">

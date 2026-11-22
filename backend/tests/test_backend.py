@@ -57,8 +57,8 @@ def test_phonemes_mapping_and_alignment():
     assert ratio < 1.0
 
 def test_curriculum_integrity():
-    # Ensure all 8 levels are accurately configured
-    assert len(CURRICULUM_DATA) == 8
+    # Ensure all 50 levels are accurately configured
+    assert len(CURRICULUM_DATA) == 50
     
     # Check Level 1 (S, A, T, P, I, N)
     l1 = CURRICULUM_DATA[0]
@@ -66,7 +66,7 @@ def test_curriculum_integrity():
     for sym in ["S", "A", "T", "P", "I", "N"]:
         assert sym in l1_symbols
     assert "Sat" in [w["word"] for w in l1["words"]]
-    assert "See" in l1["sight_words"]
+    assert "Sat" in l1["sight_words"]
 
     # Check Level 5 (SH, CH, TH)
     l5 = CURRICULUM_DATA[4]
@@ -74,9 +74,21 @@ def test_curriculum_integrity():
     for sym in ["SH", "CH", "TH"]:
         assert sym in l5_symbols
     assert "Ship" in [w["word"] for w in l5["words"]]
-    assert "Open" in l5["sight_words"]
+    assert "Ship" in l5["sight_words"]
 
-    # Check Level 8 (Final Reading & Writing)
+    # Check Level 8 (Word Families)
     l8 = CURRICULUM_DATA[7]
-    assert "Moon" in [w["word"] for w in l8["words"]]
-    assert "Book" in l8["sight_words"]
+    assert "Pig" in [w["word"] for w in l8["words"]]
+    assert "Pig" in l8["sight_words"]
+
+    # Check Level 15 (Talking with People - Milestone)
+    l15 = CURRICULUM_DATA[14]
+    assert l15["level_number"] == 15
+    assert "Talking with People" in l15["title"]
+    assert "Speak" in [w["word"] for w in l15["words"]]
+
+    # Check Level 50 (Native Bilingual Fluency - Final Mastery)
+    l50 = CURRICULUM_DATA[49]
+    assert l50["level_number"] == 50
+    assert "Mastery" in l50["title"]
+    assert len(CURRICULUM_DATA) == 50

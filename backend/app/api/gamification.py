@@ -49,12 +49,16 @@ async def get_student_dashboard(
     if not mastered and not needs_review:
         mastered = ["Letter Sounds S, A, T", "Listening & Recognition"]
 
+    from app.services.xp_service import get_next_level_requirements
+    xp_info = get_next_level_requirements(student.current_level_id, student.xp)
+
     return {
         "xp": student.xp,
         "stars": student.stars,
         "streak_days": student.streak_days,
         "current_level_id": student.current_level_id,
         "avatar": student.avatar,
+        "xp_progress": xp_info,
         "completed_lessons_count": 1 if completed_lessons else 0,
         "mastered_skills": mastered,
         "needs_review_skills": needs_review,

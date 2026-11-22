@@ -74,7 +74,7 @@ async def test_student_registration_validation():
         levels_res = await ac.get("/api/v1/curriculum/levels", headers=headers)
         assert levels_res.status_code == 200
         levels = levels_res.json()
-        assert len(levels) == 8
+        assert len(levels) == 50
         assert levels[0]["is_unlocked"] is True # Level 1 unlocked
 
         # 8. Test AI Pronunciation Evaluation

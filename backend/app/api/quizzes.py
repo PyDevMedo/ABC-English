@@ -101,36 +101,38 @@ async def submit_quiz(
         student.xp += 50
         student.stars += 5
 
-        # Unlock next level if currently at this level
+        # Unlock next level if currently at this level and XP requirement is fulfilled
+        from app.services.xp_service import get_xp_required_for_level
         next_lvl_num = quiz.level_id + 1
-        if next_lvl_num <= 8:
-            next_lvl_q = select(Level).where(Level.level_number == next_lvl_num)
-            next_lvl = (await db.execute(next_lvl_q)).scalar_one_or_none()
-            if next_lvl:
-                # Check if access exists
-                acc_q = select(StudentLevelAccess).where(
-                    and_(StudentLevelAccess.student_id == student.id, StudentLevelAccess.level_id == next_lvl.id)
-                )
-                acc = (await db.execute(acc_q)).scalar_one_or_none()
-                if not acc:
-                    acc = StudentLevelAccess(
-                        student_id=student.id,
-                        level_id=next_lvl.id,
-                        is_unlocked=True,
-                        unlocked_by="quiz_pass"
+        if next_lvl_num <= 50:
+            xp_required_for_next = get_xp_required_for_level(next_lvl_num)
+            if student.xp >= xp_required_for_next:
+                next_lvl_q = select(Level).where(Level.level_number == next_lvl_num)
+                next_lvl = (await db.execute(next_lvl_q)).scalar_one_or_none()
+                if next_lvl:
+                    acc_q = select(StudentLevelAccess).where(
+                        and_(StudentLevelAccess.student_id == student.id, StudentLevelAccess.level_id == next_lvl.id)
                     )
-                    db.add(acc)
-                else:
-                    acc.is_unlocked = True
-                student.current_level_id = next_lvl_num
-                level_unlocked = True
+                    acc = (await db.execute(acc_q)).scalar_one_or_none()
+                    if not acc:
+                        acc = StudentLevelAccess(
+                            student_id=student.id,
+                            level_id=next_lvl.id,
+                            is_unlocked=True,
+                            unlocked_by="quiz_and_xp"
+                        )
+                        db.add(acc)
+                    else:
+                        acc.is_unlocked = True
+                    student.current_level_id = next_lvl_num
+                    level_unlocked = True
 
-        # Issue Certificate if completed Level 8
-        if quiz.level_id == 8:
+        # Issue Certificate if completed milestone Level 15 or Level 50
+        if quiz.level_id in [15, 50]:
             cert = Certificate(
                 student_id=student.id,
-                level_id=8,
-                certificate_number=f"CERT-{student.id}-8-{datetime.utcnow().strftime('%Y%m%d')}"
+                level_id=quiz.level_id,
+                certificate_number=f"CERT-{student.id}-{quiz.level_id}-{datetime.utcnow().strftime('%Y%m%d')}"
             )
             db.add(cert)
 
