@@ -1,11 +1,12 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { 
   CheckSquare, Clock, CheckCircle2, AlertCircle, RotateCcw, 
   Sparkles, Camera, Image as ImageIcon, Star, Trophy, ExternalLink,
-  ChevronLeft, Award, BookOpen
+  ChevronLeft, Award, BookOpen, Upload, PlusCircle, Check
 } from 'lucide-react';
 import { api } from '../services/api';
 import { useAuth } from '../context/AuthContext';
+import confetti from 'canvas-confetti';
 
 interface HomeworkSubmission {
   id: number;
@@ -25,22 +26,66 @@ interface HomeworkSubmission {
 }
 
 export const HomeworkPage: React.FC = () => {
-  const { user } = useAuth();
+  const { user, refreshUser } = useAuth();
   const [submissions, setSubmissions] = useState<HomeworkSubmission[]>([]);
+  const [currentLevelAssignment, setCurrentLevelAssignment] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [selectedPhoto, setSelectedPhoto] = useState<string | null>(null);
 
-  const loadSubmissions = () => {
+  // Quick Photo Upload State
+  const [quickImage, setQuickImage] = useState<File | null>(null);
+  const [quickPreview, setQuickPreview] = useState<string | null>(null);
+  const [uploading, setUploading] = useState(false);
+  const [uploadSuccess, setUploadSuccess] = useState(false);
+  const cameraInputRef = useRef<HTMLInputElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const currentLevelId = user?.current_level_id || 1;
+
+  const loadData = () => {
     setLoading(true);
-    api.getMySubmissions()
-      .then(setSubmissions)
+    Promise.all([
+      api.getMySubmissions(),
+      api.getAssignmentByLevel(currentLevelId)
+    ])
+      .then(([subs, asg]) => {
+        setSubmissions(subs);
+        setCurrentLevelAssignment(asg);
+      })
       .catch(console.error)
       .finally(() => setLoading(false));
   };
 
   useEffect(() => {
-    loadSubmissions();
-  }, []);
+    loadData();
+  }, [currentLevelId]);
+
+  const handleImageSelected = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files[0]) {
+      const file = e.target.files[0];
+      setQuickImage(file);
+      setQuickPreview(URL.createObjectURL(file));
+      setUploadSuccess(false);
+    }
+  };
+
+  const handleUploadPhoto = async () => {
+    if (!quickImage || !currentLevelAssignment?.id) return;
+    setUploading(true);
+    try {
+      await api.submitHandwritingPhoto(currentLevelAssignment.id, quickImage);
+      confetti({ particleCount: 90, spread: 60, origin: { y: 0.6 } });
+      setUploadSuccess(true);
+      setQuickImage(null);
+      setQuickPreview(null);
+      refreshUser();
+      loadData();
+    } catch (err: any) {
+      alert(err.message || 'حدث خطأ أثناء رفع صورة الواجب');
+    } finally {
+      setUploading(false);
+    }
+  };
 
   const totalCount = submissions.length;
   const pendingCount = submissions.filter(s => s.status === 'submitted').length;
@@ -59,8 +104,123 @@ export const HomeworkPage: React.FC = () => {
           سجل طلبات الواجب وتصحيح المعلم 📝
         </h2>
         <p className="text-xs md:text-sm font-bold text-slate-500">
-          هنا تتابع حالة دفاتر الخط التي صورتها ورفعتها بعد نهاية الحصص، ورؤية تقييمات ودرجات المعلم أولاً بأول.
+          هنا تتابع وتسلّم دفاتر الخط التي صورتها ورفعتها، ورؤية تقييمات ودرجات المعلم أولاً بأول.
         </p>
+      </div>
+
+      {/* Quick Upload Box for Current Level */}
+      <div className="kid-card p-6 border-2 border-amber-300 bg-gradient-to-r from-amber-50/60 via-orange-50/30 to-amber-50/60 shadow-md">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-4 border-b border-amber-200">
+          <div className="flex items-center gap-3">
+            <span className="w-12 h-12 rounded-2xl bg-amber-500 text-white font-black text-base flex items-center justify-center font-fredoka shadow-md shadow-amber-200">
+              L{currentLevelId}
+            </span>
+            <div>
+              <div className="flex items-center gap-2">
+                <h3 className="text-base md:text-lg font-black text-slate-900">
+                  {currentLevelAssignment?.title || `واجب المستوى ${currentLevelId}`}
+                </h3>
+                <span className="px-2.5 py-0.5 rounded-full bg-amber-200 text-amber-900 text-[10px] font-black">
+                  المستوى الحالي
+                </span>
+              </div>
+              <p className="text-xs font-bold text-slate-600 mt-0.5">
+                {currentLevelAssignment?.instructions_ar || 'اكتب الكلمات في كراسة الأسطر الأربعة وصورها لفتح المستوى التالي 📸'}
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2 self-end md:self-center">
+            {currentLevelAssignment?.is_submitted ? (
+              <span className="inline-flex items-center gap-1 px-3 py-1.5 rounded-xl bg-emerald-100 text-emerald-900 text-xs font-black">
+                <CheckCircle2 className="w-4 h-4 text-emerald-700" />
+                تم تسليم واجب هذا المستوى ✅
+              </span>
+            ) : (
+              <span className="inline-flex items-center gap-1 px-3 py-1.5 rounded-xl bg-rose-100 text-rose-900 text-xs font-black animate-pulse">
+                <AlertCircle className="w-4 h-4 text-rose-600" />
+                بانتظار صورة الدفتر
+              </span>
+            )}
+          </div>
+        </div>
+
+        {/* Hidden File Inputs */}
+        <input
+          type="file"
+          accept="image/*"
+          capture="environment"
+          ref={cameraInputRef}
+          onChange={handleImageSelected}
+          className="hidden"
+        />
+        <input
+          type="file"
+          accept="image/*"
+          ref={fileInputRef}
+          onChange={handleImageSelected}
+          className="hidden"
+        />
+
+        {/* Action / Preview Area */}
+        <div className="pt-4">
+          {quickPreview ? (
+            <div className="flex flex-col sm:flex-row items-center gap-4 bg-white p-4 rounded-2xl border border-amber-200">
+              <div className="relative w-32 h-32 rounded-xl overflow-hidden border-2 border-amber-400 shrink-0">
+                <img src={quickPreview} alt="Preview" className="w-full h-full object-cover" />
+              </div>
+              <div className="flex-1 space-y-2 text-center sm:text-right">
+                <h4 className="text-sm font-black text-slate-800">جاهز للتسليم!</h4>
+                <p className="text-xs font-bold text-slate-500">اضغط على زر التسليم أدناه لإرسال الصورة للمعلم عبر Telegram فوراً.</p>
+                <div className="flex flex-wrap gap-2 justify-center sm:justify-start">
+                  <button
+                    type="button"
+                    onClick={handleUploadPhoto}
+                    disabled={uploading}
+                    className="px-6 py-2.5 bg-gradient-to-r from-emerald-500 to-teal-600 hover:opacity-95 text-white font-black text-xs rounded-xl shadow-md active:scale-95 transition-all flex items-center gap-1.5 cursor-pointer"
+                  >
+                    <Check className="w-4 h-4" />
+                    <span>{uploading ? 'جاري الإرسال...' : 'إرسال الصورة للمعلم الآن 🚀'}</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setQuickImage(null);
+                      setQuickPreview(null);
+                    }}
+                    className="px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-xl transition-all"
+                  >
+                    إلغاء
+                  </button>
+                </div>
+              </div>
+            </div>
+          ) : (
+            <div className="flex flex-col sm:flex-row items-center justify-between gap-3 bg-white/80 p-4 rounded-2xl border border-amber-200/80">
+              <div className="text-xs font-bold text-slate-600">
+                📸 يمكنك تصوير كراستك مباشرة من الكاميرا أو رفع صورة من المعرض:
+              </div>
+              <div className="flex gap-2 w-full sm:w-auto">
+                <button
+                  type="button"
+                  onClick={() => cameraInputRef.current?.click()}
+                  className="flex-1 sm:flex-none px-4 py-2.5 bg-gradient-to-r from-rose-500 to-pink-600 hover:opacity-95 text-white font-black text-xs rounded-xl shadow-sm flex items-center justify-center gap-1.5 active:scale-95 transition-all cursor-pointer"
+                >
+                  <Camera className="w-4 h-4" />
+                  <span>تصوير بالكاميرا</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => fileInputRef.current?.click()}
+                  className="flex-1 sm:flex-none px-4 py-2.5 bg-white hover:bg-slate-50 text-slate-800 font-black text-xs rounded-xl border border-slate-300 shadow-xs flex items-center justify-center gap-1.5 active:scale-95 transition-all cursor-pointer"
+                >
+                  <Upload className="w-4 h-4 text-slate-500" />
+                  <span>اختيار من المعرض</span>
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Metrics Row */}
@@ -99,9 +259,9 @@ export const HomeworkPage: React.FC = () => {
           <div className="w-20 h-20 bg-amber-100 text-amber-600 rounded-3xl mx-auto flex items-center justify-center text-4xl shadow-inner">
             📷
           </div>
-          <h3 className="text-xl font-black text-slate-800">لا توجد ركوستات واجبات مرسلة بعد!</h3>
+          <h3 className="text-xl font-black text-slate-800">لا توجد ركوستات واجبات سابقة بعد!</h3>
           <p className="text-xs md:text-sm text-slate-500 font-bold leading-relaxed">
-            عند انتهائك من درسك في صفحة المستويات، قم بكتابة الكلمات في كراسة الأسطر الأربعة والتقط صورة لدفترك، وسيظهر طلب التسليم هنا فوراً لتصحيحه من قبل المعلم.
+            التقط صورة لدفترك الآن عبر الصندوق بالأعلى، وسيتم إرسالها فوراً للمعلم عبر Telegram لتصحيحها ورصد درجتك.
           </p>
         </div>
       ) : (
@@ -244,23 +404,24 @@ export const HomeworkPage: React.FC = () => {
           className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4"
         >
           <div 
-            onClick={(e) => e.stopPropagation()}
-            className="relative max-w-2xl w-full bg-white rounded-3xl p-4 shadow-2xl overflow-hidden space-y-4"
+            onClick={e => e.stopPropagation()} 
+            className="bg-white rounded-3xl p-4 max-w-2xl w-full max-h-[90vh] overflow-hidden flex flex-col space-y-3 shadow-2xl"
           >
-            <div className="flex items-center justify-between px-2">
+            <div className="flex items-center justify-between pb-2 border-b border-slate-100">
               <span className="font-black text-sm text-slate-800">معاينة صورة كراسة الواجب 📸</span>
-              <button 
+              <button
+                type="button"
                 onClick={() => setSelectedPhoto(null)}
-                className="w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-700 font-black text-sm flex items-center justify-center transition-all"
+                className="w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-600 flex items-center justify-center font-black"
               >
                 ✕
               </button>
             </div>
-            <div className="rounded-2xl overflow-hidden border border-slate-200 bg-slate-900 max-h-[70vh] flex items-center justify-center">
+            <div className="flex-1 overflow-auto rounded-2xl bg-slate-950 flex items-center justify-center">
               <img 
                 src={selectedPhoto} 
                 alt="كراسة الطالب" 
-                className="max-h-[70vh] object-contain"
+                className="max-w-full max-h-[75vh] object-contain rounded-xl"
               />
             </div>
           </div>

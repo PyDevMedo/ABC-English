@@ -698,8 +698,8 @@ async def cb_toggle_student(call: CallbackQuery):
             await db.commit()
             status_text = "تفعيل" if user.is_active else "إيقاف"
             await call.answer(f"تم {status_text} حساب الطالب بنجاح!", show_alert=True)
-            call.data = f"view_stu_{identifier}"
-            await cb_view_student(call)
+            new_call = call.model_copy(update={"data": f"view_stu_{identifier}"})
+            await cb_view_student(new_call)
 
 # Level Setting for Student (50 Levels Selector)
 @dp.callback_query(F.data.startswith("set_lvl_"))
@@ -766,8 +766,8 @@ async def cb_apply_level(call: CallbackQuery):
             user.student_profile.current_level_id = lvl_num
             await db.commit()
             await call.answer(f"تم تغيير مستوى الطالب إلى Level {lvl_num} بنجاح!", show_alert=True)
-            call.data = f"view_stu_{identifier}"
-            await cb_view_student(call)
+            new_call = call.model_copy(update={"data": f"view_stu_{identifier}"})
+            await cb_view_student(new_call)
 
 # Review & Grade Homework Submissions
 @dp.callback_query(F.data.startswith("sub_rev_"))
@@ -849,8 +849,8 @@ async def cb_sub_retry(call: CallbackQuery):
 
         await db.commit()
         await call.answer("تم إشعار الطالب بإعادة كتابة الواجب بخط أفضل ✍️", show_alert=True)
-        call.data = f"sub_rev_{sub_id}"
-        await cb_review_submission(call)
+        new_call = call.model_copy(update={"data": f"sub_rev_{sub_id}"})
+        await cb_review_submission(new_call)
 
 @dp.callback_query(F.data.startswith("sub_grade_"))
 async def cb_grade_options(call: CallbackQuery):
@@ -1033,8 +1033,8 @@ async def cb_menu_grading(call: CallbackQuery):
 
         if pending:
             # Jump directly to review
-            call.data = f"sub_rev_{pending.id}"
-            await cb_review_submission(call)
+            new_call = call.model_copy(update={"data": f"sub_rev_{pending.id}"})
+            await cb_review_submission(new_call)
             return
 
         # No pending homework!
