@@ -1,4 +1,5 @@
-const API_BASE = '/api/v1';
+const API_HOST = (import.meta.env.VITE_API_BASE_URL || '').replace(/\/$/, '');
+const API_BASE = `${API_HOST}/api/v1`;
 
 export const getAuthToken = () => localStorage.getItem('token');
 export const setAuthToken = (token: string) => localStorage.setItem('token', token);

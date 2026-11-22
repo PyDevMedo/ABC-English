@@ -65,7 +65,7 @@ dp = Dispatcher(storage=MemoryStorage())
 @dp.message(CommandStart())
 async def cmd_start(message: Message):
     text = (
-        f"👋 <b>مرحباً بك في مركز إدارة منصة My English Journey!</b>\n\n"
+        f"👋 <b>مرحباً بك في مركز إدارة منصة ABC لتعليم الإنجليزية للأطفال!</b>\n\n"
         f"من هنا يمكنك إدارة المنصة بالكامل، متابعة تقدم الأطفال، تصحيح الواجبات، "
         f"والاطلاع على تقارير وتوصيات مدرس الذكاء الاصطناعي الذكي.\n\n"
         f"اختر القسم المطلوب من القائمة أدناه:"

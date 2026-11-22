@@ -4,30 +4,58 @@
 
 @layer base {
   body {
-    background-color: #fefce8;
+    background-color: #f8fafc;
   }
 }
 
+/* Custom ABC Kid-Tech UI Components */
 .kid-card {
-  @apply bg-white rounded-3xl border-4 border-amber-200 shadow-[0_8px_0_0_#fde047] hover:shadow-[0_4px_0_0_#fde047] hover:translate-y-1 transition-all duration-200;
+  @apply bg-white rounded-3xl border-2 border-slate-100 shadow-[0_10px_25px_-5px_rgba(0,0,0,0.04),0_8px_10px_-6px_rgba(0,0,0,0.02)] hover:shadow-[0_20px_35px_-5px_rgba(245,158,11,0.15)] hover:border-amber-200 hover:-translate-y-1 transition-all duration-300;
 }
 
 .kid-button {
-  @apply font-bold rounded-2xl shadow-[0_6px_0_0_rgba(0,0,0,0.15)] active:shadow-[0_2px_0_0_rgba(0,0,0,0.15)] active:translate-y-1 transition-all duration-150 flex items-center justify-center gap-2;
+  @apply font-black rounded-2xl shadow-[0_6px_0_0_rgba(0,0,0,0.12)] active:shadow-[0_2px_0_0_rgba(0,0,0,0.12)] active:translate-y-1 transition-all duration-150 flex items-center justify-center gap-2 select-none;
 }
 
 .kid-button-primary {
-  @apply kid-button bg-amber-400 hover:bg-amber-500 text-amber-950 shadow-amber-600 active:shadow-amber-600;
+  @apply kid-button bg-gradient-to-r from-amber-400 via-amber-500 to-orange-500 hover:from-amber-500 hover:to-orange-600 text-white shadow-orange-700 active:shadow-orange-700;
 }
 
 .kid-button-green {
-  @apply kid-button bg-emerald-400 hover:bg-emerald-500 text-emerald-950 shadow-emerald-600 active:shadow-emerald-600;
+  @apply kid-button bg-gradient-to-r from-emerald-400 to-teal-500 hover:from-emerald-500 hover:to-teal-600 text-white shadow-teal-700 active:shadow-teal-700;
 }
 
 .kid-button-blue {
-  @apply kid-button bg-sky-400 hover:bg-sky-500 text-sky-950 shadow-sky-600 active:shadow-sky-600;
+  @apply kid-button bg-gradient-to-r from-sky-400 to-blue-500 hover:from-sky-500 hover:to-blue-600 text-white shadow-blue-700 active:shadow-blue-700;
 }
 
 .kid-button-purple {
-  @apply kid-button bg-purple-400 hover:bg-purple-500 text-purple-950 shadow-purple-600 active:shadow-purple-600;
+  @apply kid-button bg-gradient-to-r from-purple-400 to-indigo-500 hover:from-purple-500 hover:to-indigo-600 text-white shadow-indigo-700 active:shadow-indigo-700;
+}
+
+/* Shimmer animation */
+@keyframes shimmer {
+  100% {
+    transform: translateX(100%);
+  }
+}
+
+.animate-shimmer {
+  position: relative;
+  overflow: hidden;
+}
+
+.animate-shimmer::after {
+  position: absolute;
+  top: 0; right: 0; bottom: 0; left: 0;
+  transform: translateX(-100%);
+  background-image: linear-gradient(
+    90deg,
+    rgba(255, 255, 255, 0) 0,
+    rgba(255, 255, 255, 0.2) 20%,
+    rgba(255, 255, 255, 0.5) 60%,
+    rgba(255, 255, 255, 0)
+  );
+  animation: shimmer 2.5s infinite;
+  content: '';
 }

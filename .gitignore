@@ -16,6 +16,8 @@ frontend/.pnp.js
 frontend/coverage/
 
 # Uploads and temporary audio
+uploads/
+*.wav
 backend/uploads/*
 !backend/uploads/.gitkeep
 backend/static/audio/*

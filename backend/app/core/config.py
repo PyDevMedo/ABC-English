@@ -1,11 +1,18 @@
 import os
-from typing import List, Optional
-from pydantic_settings import BaseSettings
+from typing import List, Optional, Union, Any
+from pydantic import field_validator
+from pydantic_settings import BaseSettings, SettingsConfigDict
 
 class Settings(BaseSettings):
-    PROJECT_NAME: str = "My English Journey"
+    model_config = SettingsConfigDict(
+        env_file=".env",
+        extra="ignore",
+        case_sensitive=False
+    )
+
+    PROJECT_NAME: str = "ABC English"
     API_V1_STR: str = "/api/v1"
-    SECRET_KEY: str = os.getenv("SECRET_KEY", "english-journey-super-secret-key-children-2026-xyz123")
+    SECRET_KEY: str = os.getenv("SECRET_KEY", "abc-super-secret-key-children-2026-xyz123")
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 60 * 24 * 7  # 7 days
     ALGORITHM: str = "HS256"
 
@@ -13,8 +20,24 @@ class Settings(BaseSettings):
     DATABASE_URL: str = os.getenv("DATABASE_URL", "sqlite+aiosqlite:///./english_journey.db")
     
     # Telegram Bot Settings
-    TELEGRAM_BOT_TOKEN: Optional[str] = os.getenv("TELEGRAM_BOT_TOKEN", "")
-    TELEGRAM_ADMIN_IDS: List[int] = [int(x.strip()) for x in os.getenv("TELEGRAM_ADMIN_IDS", "").split(",") if x.strip().isdigit()]
+    TELEGRAM_BOT_TOKEN: Optional[str] = ""
+    TELEGRAM_ADMIN_IDS: Any = []
+
+    @field_validator("TELEGRAM_ADMIN_IDS", mode="before")
+    @classmethod
+    def parse_admin_ids(cls, v: Any) -> List[int]:
+        if isinstance(v, list):
+            return [int(x) for x in v if str(x).strip().isdigit()]
+        if isinstance(v, int):
+            return [v]
+        if isinstance(v, str):
+            res = []
+            for part in v.split(","):
+                part = part.strip()
+                if part.isdigit():
+                    res.append(int(part))
+            return res
+        return []
     
     # Storage & Uploads
     UPLOAD_DIR: str = os.path.abspath(os.getenv("UPLOAD_DIR", "./uploads"))
@@ -27,11 +50,7 @@ class Settings(BaseSettings):
     WEAKNESS_DETECTION_THRESHOLD: int = 3  # Errors on same phoneme to trigger adaptive path
 
     # AI External Provider (Optional, defaults to local acoustic + phoneme analysis engine)
-    OPENAI_API_KEY: Optional[str] = os.getenv("OPENAI_API_KEY", "")
-    ELEVENLABS_API_KEY: Optional[str] = os.getenv("ELEVENLABS_API_KEY", "")
-
-    class Config:
-        case_sensitive = True
-        env_file = ".env"
+    OPENAI_API_KEY: Optional[str] = ""
+    ELEVENLABS_API_KEY: Optional[str] = ""
 
 settings = Settings()

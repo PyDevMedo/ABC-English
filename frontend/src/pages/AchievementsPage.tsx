@@ -99,12 +99,12 @@ export const AchievementsPage: React.FC = () => {
         </h3>
 
         <div className="p-6 rounded-3xl border-4 border-amber-300 bg-gradient-to-br from-amber-50 via-yellow-50 to-white text-center space-y-4 max-w-lg mx-auto shadow-lg relative overflow-hidden">
-          <div className="border-4 border-double border-amber-400 p-6 rounded-2xl">
+          <div className="border-4 border-double border-amber-400 p-6 rounded-2xl bg-white/90 shadow-sm">
             <span className="text-xs font-black tracking-widest text-amber-800 uppercase block mb-1">
-              Certificate of Achievement
+              ABC Official Certificate of Achievement
             </span>
             <h4 className="text-2xl font-black font-fredoka text-slate-900">
-              شهادة تفوق وإتقان Phonics
+              شهادة تفوق وإتقان Phonics — منصة ABC
             </h4>
             <p className="text-xs font-bold text-slate-500 my-2">تُمنح هذه الشهادة المعتمدة للطفل العبقري:</p>
             <div className="text-2xl font-black text-purple-900 border-b-2 border-purple-300 pb-2 max-w-xs mx-auto">

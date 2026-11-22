@@ -40,8 +40,8 @@ const AppContent: React.FC = () => {
         {currentTab === 'achievements' && <AchievementsPage />}
       </main>
 
-      <footer className="bg-white border-t-2 border-amber-200 py-6 text-center text-xs text-slate-500 font-bold">
-        <p>My English Journey © {new Date().getFullYear()} — منصة تعليم الإنجليزية للأطفال بنظام إدارة Telegram والذكاء الاصطناعي</p>
+      <footer className="bg-white border-t border-slate-100 py-6 text-center text-xs text-slate-500 font-bold">
+        <p>منصة ABC لتعليم الإنجليزية للأطفال © {new Date().getFullYear()} — نظام إدارة متكامل عبر Telegram ومدعوم بالذكاء الاصطناعي</p>
       </footer>
     </div>
   );
