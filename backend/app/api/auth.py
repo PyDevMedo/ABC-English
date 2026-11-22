@@ -1,5 +1,9 @@
+import asyncio
+import logging
 from datetime import datetime, timedelta
 from typing import Annotated
+
+logger = logging.getLogger(__name__)
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -119,16 +123,19 @@ async def register(user_in: UserRegister, db: AsyncSession = Depends(get_db)):
     db.add(log)
     await db.commit()
 
-    # 7. Notify Telegram Bot Admins asynchronously
+    # 7. Notify Telegram Bot Admins in background without delaying user registration
     reg_date_str = datetime.utcnow().strftime("%Y-%m-%d %H:%M")
-    await notify_admins_new_student(
-        student_id_str=student_id_str,
-        full_name=new_user.full_name,
-        phone_number=new_user.phone_number,
-        registration_date=reg_date_str,
-        level_num=1,
-        is_active=new_user.is_active
-    )
+    try:
+        asyncio.create_task(notify_admins_new_student(
+            student_id_str=student_id_str,
+            full_name=new_user.full_name,
+            phone_number=new_user.phone_number,
+            registration_date=reg_date_str,
+            level_num=1,
+            is_active=new_user.is_active
+        ))
+    except Exception as e:
+        logger.warning(f"Could not dispatch telegram notification task: {e}")
 
     return UserResponse(
         id=new_user.id,

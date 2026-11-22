@@ -57,7 +57,7 @@ export const AuthPage: React.FC = () => {
         <div className="absolute -bottom-16 -left-16 w-36 h-36 bg-indigo-300/30 rounded-full blur-2xl"></div>
 
         {/* Brand Header */}
-        <div className="text-center mb-8 relative z-10">
+        <div className="text-center mb-6 relative z-10">
           <div className="w-20 h-20 rounded-3xl bg-gradient-to-tr from-amber-400 via-rose-500 to-indigo-600 flex items-center justify-center text-white mx-auto mb-3 shadow-xl shadow-rose-200">
             <span className="font-black font-fredoka text-3xl tracking-tighter drop-shadow-md">ABC</span>
           </div>
@@ -67,6 +67,39 @@ export const AuthPage: React.FC = () => {
           <p className="text-xs font-bold text-slate-500 mt-1">
             {isRegister ? 'تسجيل حساب جديد في منصة ABC التعليمية 🌟' : 'أهلاً بك مجدداً في منصة ABC! سجل دخولك 🎒'}
           </p>
+        </div>
+
+        {/* Auth Mode Tabs Switcher */}
+        <div className="grid grid-cols-2 p-1.5 bg-slate-100/90 rounded-2xl mb-6 relative z-10 border border-slate-200">
+          <button
+            type="button"
+            onClick={() => {
+              setIsRegister(false);
+              setError(null);
+            }}
+            className={`py-3 rounded-xl font-black text-xs md:text-sm flex items-center justify-center gap-1.5 transition-all ${
+              !isRegister
+                ? 'bg-white text-slate-900 shadow-md shadow-slate-200 scale-102 font-bold'
+                : 'text-slate-500 hover:text-slate-800'
+            }`}
+          >
+            <span>تسجيل الدخول</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              setIsRegister(true);
+              setError(null);
+              setConfirmPassword('');
+            }}
+            className={`py-3 rounded-xl font-black text-xs md:text-sm flex items-center justify-center gap-1.5 transition-all ${
+              isRegister
+                ? 'bg-gradient-to-r from-amber-400 to-orange-400 text-white shadow-md shadow-orange-200 scale-102 font-bold'
+                : 'text-slate-500 hover:text-slate-800'
+            }`}
+          >
+            <span>إنشاء حساب جديد</span>
+          </button>
         </div>
 
         {error && (

@@ -36,10 +36,15 @@ def validate_tripartite_name(name: str) -> bool:
     return len(parts) >= 3
 
 def validate_phone_number(phone: str) -> Optional[str]:
-    """Validate and clean phone number (allows standard country/local formats)"""
+    """Validate and clean phone number (allows standard country/local formats and Arabic digits)"""
     if not phone:
         return None
-    cleaned = re.sub(r'[\s\-\(\)\+]', '', phone)
+    # Normalize Arabic/Eastern numerals (٠١٢٣٤٥٦٧٨٩) to standard (0123456789)
+    arabic_digits = "٠١٢٣٤٥٦٧٨٩"
+    persian_digits = "۰۱۲۳۴۵۶۷۸۹"
+    trans = str.maketrans(arabic_digits + persian_digits, "0123456789" * 2)
+    cleaned = str(phone).translate(trans)
+    cleaned = re.sub(r'[\s\-\(\)\+]', '', cleaned)
     if not cleaned.isdigit() or len(cleaned) < 8 or len(cleaned) > 15:
         return None
     return cleaned
