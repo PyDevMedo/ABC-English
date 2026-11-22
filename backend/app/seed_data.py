@@ -5,7 +5,7 @@ from app.core.database import AsyncSessionLocal, engine, Base
 from app.core.security import get_password_hash, generate_student_id
 from app.models.entities import (
     User, StudentProfile, TeacherAccount, Level, Lesson, LessonSection,
-    Word, Phoneme, Quiz, QuizQuestion, StudentLevelAccess, SystemSetting
+    Word, Phoneme, Quiz, QuizQuestion, StudentLevelAccess, SystemSetting, Assignment
 )
 from app.services.phonics_curriculum import CURRICULUM_DATA
 
@@ -127,6 +127,25 @@ async def seed_database():
                     is_sight_word=True
                 )
                 db.add(sw_obj)
+
+            # Seed Mandatory Handwriting Assignment
+            hw_words = [w["word"] for w in item["words"][:4]]
+            hw_sentences = [s["text"] for s in item["sentences"][:2]]
+            hw_instructions = (
+                f"اكتب في كراسة اللغة الإنجليزية الكلمات التالية بخط جميل ومرتب: "
+                f"({', '.join(hw_words)}) وجملة: ({hw_sentences[0] if hw_sentences else ''})، "
+                f"ثم التقط صورة واضحة للدفتر وارفعها هنا لاعتماد الواجب وفتح المرحلة التالية!"
+            )
+            assignment = Assignment(
+                level_id=level.id,
+                title=f"واجب كتابة وتثبيت كلمات {item['title']}",
+                description=f"كتابة حروف وكلمات {item['subtitle']} في كراسة الإنجليزية وتصوير الصفحة.",
+                instructions_ar=hw_instructions,
+                assignment_type="handwriting_photo",
+                target_words_json=hw_words,
+                target_sentences_json=hw_sentences
+            )
+            db.add(assignment)
 
             # Seed Level Quiz
             quiz = Quiz(

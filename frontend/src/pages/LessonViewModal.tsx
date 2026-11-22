@@ -1,7 +1,8 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { 
   X, Volume2, Sparkles, BookOpen, Layers, CheckCircle2, 
-  ArrowLeft, ArrowRight, Star, Trophy, Mic
+  ArrowLeft, ArrowRight, Star, Trophy, Mic, Camera, Upload, 
+  AlertCircle, PenTool, Check, RotateCcw
 } from 'lucide-react';
 import { playAudio, api } from '../services/api';
 import { AudioRecorder } from '../components/AudioRecorder';
@@ -20,19 +21,38 @@ export const LessonViewModal: React.FC<LessonViewModalProps> = ({
 }) => {
   const [levelData, setLevelData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<'intro' | 'phonics' | 'words' | 'sentences' | 'lab'>('intro');
+  const [activeTab, setActiveTab] = useState<'intro' | 'phonics' | 'words' | 'sentences' | 'lab' | 'handwriting'>('intro');
   const [evaluating, setEvaluating] = useState(false);
   const [evalResult, setEvalResult] = useState<any>(null);
   const [selectedWordForLab, setSelectedWordForLab] = useState<string>('Ship');
   const [completed, setCompleted] = useState(false);
 
-  React.useEffect(() => {
+  // Handwriting Homework State
+  const [assignment, setAssignment] = useState<any>(null);
+  const [hwImage, setHwImage] = useState<File | null>(null);
+  const [hwImagePreview, setHwImagePreview] = useState<string | null>(null);
+  const [hwSubmitting, setHwSubmitting] = useState(false);
+  const [hwSubmitted, setHwSubmitted] = useState(false);
+  const cameraInputRef = useRef<HTMLInputElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
     setLoading(true);
-    api.getLevelDetail(levelId)
-      .then((data) => {
-        setLevelData(data);
-        if (data.lessons?.[0]?.sections) {
-          const wordsSec = data.lessons[0].sections.find((s: any) => s.section_type === 'words');
+    Promise.all([
+      api.getLevelDetail(levelId),
+      api.getAssignmentByLevel(levelId)
+    ])
+      .then(([lvlData, asgData]) => {
+        setLevelData(lvlData);
+        setAssignment(asgData);
+        if (asgData?.is_submitted) {
+          setHwSubmitted(true);
+          if (asgData.image_url) {
+            setHwImagePreview(asgData.image_url);
+          }
+        }
+        if (lvlData.lessons?.[0]?.sections) {
+          const wordsSec = lvlData.lessons[0].sections.find((s: any) => s.section_type === 'words');
           if (wordsSec?.content_json?.words?.[0]?.word) {
             setSelectedWordForLab(wordsSec.content_json.words[0].word);
           }
@@ -93,7 +113,34 @@ export const LessonViewModal: React.FC<LessonViewModalProps> = ({
     }
   };
 
+  const handleImageSelected = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files[0]) {
+      const file = e.target.files[0];
+      setHwImage(file);
+      setHwImagePreview(URL.createObjectURL(file));
+    }
+  };
+
+  const submitHandwritingHomework = async () => {
+    if (!hwImage || !assignment?.id) return;
+    setHwSubmitting(true);
+    try {
+      await api.submitHandwritingPhoto(assignment.id, hwImage);
+      confetti({ particleCount: 100, spread: 70, origin: { y: 0.6 } });
+      setHwSubmitted(true);
+      if (onLessonCompleted) onLessonCompleted();
+    } catch (err: any) {
+      alert(err.message || 'فشل رفع صورة الواجب');
+    } finally {
+      setHwSubmitting(false);
+    }
+  };
+
   const finishLesson = async () => {
+    if (!hwSubmitted) {
+      setActiveTab('handwriting');
+      return;
+    }
     if (lesson?.id) {
       await api.completeLesson(lesson.id);
       confetti({ particleCount: 100, spread: 70, origin: { y: 0.6 } });
@@ -101,7 +148,7 @@ export const LessonViewModal: React.FC<LessonViewModalProps> = ({
       if (onLessonCompleted) onLessonCompleted();
       setTimeout(() => {
         onClose();
-      }, 2000);
+      }, 1800);
     }
   };
 
@@ -112,7 +159,7 @@ export const LessonViewModal: React.FC<LessonViewModalProps> = ({
         <div className="bg-gradient-to-r from-amber-400 via-rose-300 to-purple-400 p-4 sm:p-6 text-amber-950 flex items-center justify-between shrink-0">
           <div>
             <span className="text-xs font-black bg-white/70 px-3 py-1 rounded-full text-purple-900 inline-block mb-1">
-              Level {levelData.level_number}
+              ABC Level {levelData.level_number}
             </span>
             <h3 className="text-xl sm:text-2xl font-black font-fredoka">{levelData.title}</h3>
             <p className="text-xs sm:text-sm font-bold text-slate-800">{levelData.subtitle}</p>
@@ -129,7 +176,7 @@ export const LessonViewModal: React.FC<LessonViewModalProps> = ({
         <div className="flex border-b-2 border-amber-100 bg-amber-50/70 p-2 gap-1 overflow-x-auto shrink-0 scrollbar-none">
           <button
             onClick={() => setActiveTab('intro')}
-            className={`px-4 py-2 rounded-2xl text-xs sm:text-sm font-bold whitespace-nowrap transition-all ${
+            className={`px-3.5 py-2 rounded-2xl text-xs sm:text-sm font-bold whitespace-nowrap transition-all ${
               activeTab === 'intro' ? 'bg-amber-400 text-amber-950 shadow-sm' : 'text-slate-600 hover:bg-white'
             }`}
           >
@@ -137,7 +184,7 @@ export const LessonViewModal: React.FC<LessonViewModalProps> = ({
           </button>
           <button
             onClick={() => setActiveTab('phonics')}
-            className={`px-4 py-2 rounded-2xl text-xs sm:text-sm font-bold whitespace-nowrap transition-all ${
+            className={`px-3.5 py-2 rounded-2xl text-xs sm:text-sm font-bold whitespace-nowrap transition-all ${
               activeTab === 'phonics' ? 'bg-amber-400 text-amber-950 shadow-sm' : 'text-slate-600 hover:bg-white'
             }`}
           >
@@ -145,7 +192,7 @@ export const LessonViewModal: React.FC<LessonViewModalProps> = ({
           </button>
           <button
             onClick={() => setActiveTab('words')}
-            className={`px-4 py-2 rounded-2xl text-xs sm:text-sm font-bold whitespace-nowrap transition-all ${
+            className={`px-3.5 py-2 rounded-2xl text-xs sm:text-sm font-bold whitespace-nowrap transition-all ${
               activeTab === 'words' ? 'bg-amber-400 text-amber-950 shadow-sm' : 'text-slate-600 hover:bg-white'
             }`}
           >
@@ -153,7 +200,7 @@ export const LessonViewModal: React.FC<LessonViewModalProps> = ({
           </button>
           <button
             onClick={() => setActiveTab('sentences')}
-            className={`px-4 py-2 rounded-2xl text-xs sm:text-sm font-bold whitespace-nowrap transition-all ${
+            className={`px-3.5 py-2 rounded-2xl text-xs sm:text-sm font-bold whitespace-nowrap transition-all ${
               activeTab === 'sentences' ? 'bg-amber-400 text-amber-950 shadow-sm' : 'text-slate-600 hover:bg-white'
             }`}
           >
@@ -161,11 +208,25 @@ export const LessonViewModal: React.FC<LessonViewModalProps> = ({
           </button>
           <button
             onClick={() => setActiveTab('lab')}
-            className={`px-4 py-2 rounded-2xl text-xs sm:text-sm font-bold whitespace-nowrap transition-all ${
+            className={`px-3.5 py-2 rounded-2xl text-xs sm:text-sm font-bold whitespace-nowrap transition-all ${
               activeTab === 'lab' ? 'bg-purple-500 text-white shadow-sm' : 'text-purple-700 bg-purple-50 hover:bg-purple-100'
             }`}
           >
-            🤖 مختبر النطق الذكي
+            🤖 مختبر النطق
+          </button>
+          <button
+            onClick={() => setActiveTab('handwriting')}
+            className={`px-3.5 py-2 rounded-2xl text-xs sm:text-sm font-black whitespace-nowrap transition-all flex items-center gap-1.5 ${
+              activeTab === 'handwriting'
+                ? 'bg-gradient-to-r from-rose-500 to-orange-500 text-white shadow-md shadow-rose-200'
+                : hwSubmitted
+                ? 'bg-emerald-100 text-emerald-800'
+                : 'bg-rose-100 text-rose-800 hover:bg-rose-200 animate-pulse'
+            }`}
+          >
+            <PenTool className="w-4 h-4" />
+            <span>✍️ واجب الدفتر (إجباري)</span>
+            {hwSubmitted && <Check className="w-3.5 h-3.5 text-emerald-600 stroke-[3]" />}
           </button>
         </div>
 
@@ -241,7 +302,6 @@ export const LessonViewModal: React.FC<LessonViewModalProps> = ({
                     <div className="text-3xl font-black font-fredoka text-slate-800 mb-1">
                       {w.word}
                     </div>
-                    {/* Phoneme pills */}
                     <div className="flex justify-center gap-1.5 my-2">
                       {w.phonemes.split('-').map((p: string, pIdx: number) => (
                         <span key={pIdx} className="bg-amber-100 text-amber-900 font-fredoka text-xs font-bold px-2 py-0.5 rounded-lg border border-amber-300">
@@ -281,7 +341,6 @@ export const LessonViewModal: React.FC<LessonViewModalProps> = ({
           {/* TAB 4: SENTENCES & SIGHT WORDS */}
           {activeTab === 'sentences' && (
             <div className="space-y-6">
-              {/* Sight words */}
               <div>
                 <h5 className="text-base font-black text-slate-800 mb-3 flex items-center gap-2">
                   <Star className="w-5 h-5 text-amber-500 fill-amber-400" />
@@ -301,7 +360,6 @@ export const LessonViewModal: React.FC<LessonViewModalProps> = ({
                 </div>
               </div>
 
-              {/* Sentences */}
               <div>
                 <h5 className="text-base font-black text-slate-800 mb-3">الجمل القصيرة للقراءة:</h5>
                 <div className="space-y-3">
@@ -349,7 +407,6 @@ export const LessonViewModal: React.FC<LessonViewModalProps> = ({
                 </button>
               </div>
 
-              {/* Mic recorder widget */}
               <AudioRecorder
                 onRecordingComplete={handlePronunciationRecord}
                 onSimulatedSpeech={handleSimulatedPronunciation}
@@ -363,9 +420,8 @@ export const LessonViewModal: React.FC<LessonViewModalProps> = ({
                 </div>
               )}
 
-              {/* Evaluation Result Card */}
               {evalResult && (
-                <div className="bg-white rounded-3xl p-6 border-4 border-amber-300 shadow-lg space-y-4 animate-in fade-in">
+                <div className="bg-white rounded-3xl p-6 border-4 border-amber-300 shadow-lg space-y-4">
                   <div className="flex items-center justify-between">
                     <div>
                       <span className="text-xs font-bold text-slate-500">تقييم النطق:</span>
@@ -385,59 +441,224 @@ export const LessonViewModal: React.FC<LessonViewModalProps> = ({
                     </div>
                   </div>
 
-                  {/* Phoneme Breakdown */}
-                  <div className="bg-slate-50 p-3 rounded-2xl border border-slate-200">
-                    <span className="text-xs font-bold text-slate-600 block mb-1">الأصوات المحللة (Phonemes):</span>
-                    <div className="flex gap-2">
-                      {evalResult.correct_phonemes?.map((p: string, i: number) => (
-                        <span key={i} className="bg-emerald-100 text-emerald-800 text-xs font-bold px-2.5 py-1 rounded-lg border border-emerald-300">
-                          {p} ✓
-                        </span>
-                      ))}
-                      {evalResult.error_phonemes?.map((p: string, i: number) => (
-                        <span key={i} className="bg-rose-100 text-rose-800 text-xs font-bold px-2.5 py-1 rounded-lg border border-rose-300">
-                          {p} (يحتاج تحسين)
-                        </span>
-                      ))}
-                    </div>
-                  </div>
-
-                  {/* Feedback Message */}
                   <div className="p-4 rounded-2xl bg-amber-50 border border-amber-200 text-amber-950 font-bold text-sm">
                     {evalResult.feedback_text}
                   </div>
-
-                  {evalResult.adaptive_triggered && (
-                    <div className="p-3 bg-purple-100 rounded-2xl border border-purple-300 text-purple-900 text-xs font-bold flex items-center gap-2">
-                      <Sparkles className="w-5 h-5 text-purple-600 shrink-0" />
-                      <span>
-                        قام مدرس الذكاء الاصطناعي بتوليد تدريبات إضافية مخصصة لصوت {evalResult.weakness_detected} في قسم "المسار الذكي"!
-                      </span>
-                    </div>
-                  )}
                 </div>
               )}
+            </div>
+          )}
+
+          {/* TAB 6: MANDATORY HANDWRITING HOMEWORK (واجب الكتابة الورقية وتصوير الدفتر) */}
+          {activeTab === 'handwriting' && (
+            <div className="space-y-6">
+              {/* Mandatory Alert Banner */}
+              <div className="bg-gradient-to-r from-rose-50 to-orange-50 p-6 rounded-3xl border-2 border-rose-200 text-center relative overflow-hidden">
+                <span className="text-xs font-black bg-rose-500 text-white px-3 py-1 rounded-full mb-2 inline-block">
+                  شرط إلزامي للانتقال للدرس التالي 🔒
+                </span>
+                <h4 className="text-xl sm:text-2xl font-black text-slate-900 mb-1">
+                  واجب كتابة وتثبيت الكلمات في الدفتر ✍️
+                </h4>
+                <p className="text-xs sm:text-sm font-bold text-slate-600 max-w-xl mx-auto">
+                  حتى تثبت الحروف والكلمات في ذاكرتك، أحضر كراسة اللغة الإنجليزية الخاصة بك واكتب الكلمات بخطك الجميل، ثم التقط صورة لدفترك وارفعها هنا!
+                </p>
+              </div>
+
+              {/* 4-Lines Handwriting Guide Sheet Simulation */}
+              <div className="bg-white rounded-3xl p-6 border-2 border-slate-200 shadow-sm space-y-4">
+                <div className="flex items-center justify-between border-b pb-3">
+                  <span className="text-xs font-black text-slate-700 flex items-center gap-1.5">
+                    <PenTool className="w-4 h-4 text-rose-500" />
+                    الكلمات والجمل المطلوب كتابتها في كراستك:
+                  </span>
+                  <span className="text-[11px] font-bold text-slate-400">كراسة تحسين الخط 4-Lines</span>
+                </div>
+
+                {/* 4-lines Ruled Notebook Preview */}
+                <div className="bg-amber-50/40 rounded-2xl p-5 border border-amber-200 space-y-4 font-fredoka">
+                  {assignment?.target_words?.map((w: string, i: number) => (
+                    <div key={i} className="relative py-2 border-b-2 border-slate-200 select-none">
+                      {/* 4 dashed guide lines */}
+                      <div className="absolute inset-0 flex flex-col justify-between pointer-events-none opacity-20">
+                        <div className="border-b border-rose-500 w-full"></div>
+                        <div className="border-b border-dashed border-sky-500 w-full"></div>
+                        <div className="border-b border-sky-500 w-full"></div>
+                        <div className="border-b border-rose-500 w-full"></div>
+                      </div>
+                      <div className="flex items-center justify-between relative z-10 px-3">
+                        <span className="text-2xl sm:text-3xl font-black text-slate-800 tracking-wider" dir="ltr">
+                          {w}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => playAudio(undefined, w)}
+                          className="px-2.5 py-1 bg-white hover:bg-slate-50 text-slate-700 rounded-lg text-xs font-bold border border-slate-200 flex items-center gap-1"
+                        >
+                          <Volume2 className="w-3.5 h-3.5" />
+                          نطق
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+
+                  {assignment?.target_sentences?.map((s: string, i: number) => (
+                    <div key={i} className="relative py-2 border-b-2 border-slate-200 select-none">
+                      <div className="flex items-center justify-between relative z-10 px-3">
+                        <span className="text-xl sm:text-2xl font-black text-indigo-900 tracking-wide" dir="ltr">
+                          {s}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => playAudio(undefined, s)}
+                          className="px-2.5 py-1 bg-white hover:bg-slate-50 text-slate-700 rounded-lg text-xs font-bold border border-slate-200 flex items-center gap-1"
+                        >
+                          <Volume2 className="w-3.5 h-3.5" />
+                          نطق
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Photo Upload & Camera Action Box */}
+              <div className="bg-slate-50 p-6 rounded-3xl border-2 border-dashed border-slate-300 text-center space-y-4">
+                {/* Hidden Inputs for Camera and File Picker */}
+                <input
+                  type="file"
+                  accept="image/*"
+                  capture="environment"
+                  ref={cameraInputRef}
+                  onChange={handleImageSelected}
+                  className="hidden"
+                />
+                <input
+                  type="file"
+                  accept="image/*"
+                  ref={fileInputRef}
+                  onChange={handleImageSelected}
+                  className="hidden"
+                />
+
+                {hwImagePreview ? (
+                  /* Image Preview */
+                  <div className="space-y-4 max-w-sm mx-auto">
+                    <div className="relative rounded-2xl overflow-hidden border-4 border-white shadow-xl max-h-72">
+                      <img
+                        src={hwImagePreview}
+                        alt="Handwriting homework preview"
+                        className="w-full h-auto object-cover"
+                      />
+                      {hwSubmitted && (
+                        <div className="absolute inset-0 bg-emerald-950/60 backdrop-blur-xs flex flex-col items-center justify-center text-white p-4">
+                          <CheckCircle2 className="w-12 h-12 text-emerald-400 mb-1" />
+                          <span className="font-black text-base">تم اعتماد وتسليم الواجب!</span>
+                          <span className="text-xs opacity-90">وصلت الصورة فوراً للمدرس عبر Telegram</span>
+                        </div>
+                      )}
+                    </div>
+
+                    {!hwSubmitted && (
+                      <div className="flex gap-2 justify-center">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setHwImage(null);
+                            setHwImagePreview(null);
+                          }}
+                          className="px-4 py-2 bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold rounded-xl text-xs flex items-center gap-1"
+                        >
+                          <RotateCcw className="w-3.5 h-3.5" />
+                          إعادة التصوير
+                        </button>
+                        <button
+                          type="button"
+                          onClick={submitHandwritingHomework}
+                          disabled={hwSubmitting}
+                          className="kid-button-green px-6 py-2 text-xs font-black"
+                        >
+                          {hwSubmitting ? 'جاري الرفع...' : 'تسليم الصورة للمدرس 🚀'}
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  /* Action Buttons to Capture or Select */
+                  <div className="space-y-3">
+                    <p className="text-xs font-black text-slate-700">
+                      اختر طريقة تصوير كراستك الآن:
+                    </p>
+                    <div className="flex flex-col sm:flex-row gap-3 justify-center max-w-md mx-auto">
+                      <button
+                        type="button"
+                        onClick={() => cameraInputRef.current?.click()}
+                        className="flex-1 py-3.5 px-4 bg-gradient-to-r from-rose-500 to-pink-600 hover:opacity-95 text-white font-black rounded-2xl shadow-md shadow-rose-200 flex items-center justify-center gap-2 text-sm active:scale-95 transition-all"
+                      >
+                        <Camera className="w-5 h-5" />
+                        <span>تصوير مباشر بالكاميرا 📷</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => fileInputRef.current?.click()}
+                        className="flex-1 py-3.5 px-4 bg-white hover:bg-slate-100 text-slate-800 font-black rounded-2xl border-2 border-slate-200 flex items-center justify-center gap-2 text-sm active:scale-95 transition-all shadow-sm"
+                      >
+                        <Upload className="w-5 h-5 text-slate-500" />
+                        <span>اختيار صورة من المعرض 🖼️</span>
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
             </div>
           )}
         </div>
 
         {/* Modal Footer */}
-        <div className="bg-slate-50 border-t-2 border-slate-100 p-4 flex items-center justify-between shrink-0">
+        <div className="bg-slate-50 border-t-2 border-slate-100 p-4 flex flex-col sm:flex-row items-center justify-between gap-3 shrink-0">
           <button
             onClick={onClose}
-            className="px-4 py-2 text-slate-500 font-bold text-sm hover:text-slate-800"
+            className="px-4 py-2 text-slate-500 font-bold text-xs hover:text-slate-800"
           >
             إغلاق
           </button>
 
-          <button
-            onClick={finishLesson}
-            disabled={completed}
-            className="kid-button-green px-6 py-2.5 text-sm"
-          >
-            <CheckCircle2 className="w-5 h-5" />
-            <span>{completed ? 'أحسنت! تم إكمال الدرس' : 'إتمام الدرس وحصد 30 XP 🌟'}</span>
-          </button>
+          <div className="flex items-center gap-3">
+            {!hwSubmitted && (
+              <span className="text-[11px] font-black text-rose-600 flex items-center gap-1">
+                <AlertCircle className="w-4 h-4" />
+                يجب تسليم واجب الدفتر لفتح المرحلة القادمة!
+              </span>
+            )}
+
+            <button
+              onClick={finishLesson}
+              disabled={completed}
+              className={`px-6 py-2.5 text-xs font-black rounded-2xl transition-all flex items-center gap-1.5 ${
+                hwSubmitted
+                  ? 'kid-button-green'
+                  : 'bg-rose-500 hover:bg-rose-600 text-white shadow-md shadow-rose-200'
+              }`}
+            >
+              {completed ? (
+                <>
+                  <CheckCircle2 className="w-5 h-5" />
+                  <span>أحسنت! تم إكمال الدرس وفتح المستوى التالي</span>
+                </>
+              ) : hwSubmitted ? (
+                <>
+                  <CheckCircle2 className="w-5 h-5" />
+                  <span>إتمام الدرس والتقدم للمرحلة التالية 🌟</span>
+                </>
+              ) : (
+                <>
+                  <PenTool className="w-4 h-4" />
+                  <span>تصوير وتسليم واجب الدفتر أولاً ✍️</span>
+                </>
+              )}
+            </button>
+          </div>
         </div>
       </div>
     </div>

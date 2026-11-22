@@ -152,6 +152,31 @@ export const api = {
     return res.json();
   },
 
+  async getAssignmentByLevel(levelId: number) {
+    const res = await fetch(`${API_BASE}/assignments/by-level/${levelId}`, {
+      headers: getHeaders()
+    });
+    return res.json();
+  },
+
+  async submitHandwritingPhoto(assignmentId: number, imageBlob: Blob) {
+    const formData = new FormData();
+    formData.append('assignment_id', assignmentId.toString());
+    formData.append('submission_type', 'handwriting_photo');
+    formData.append('image_file', imageBlob, 'notebook_homework.jpg');
+
+    const res = await fetch(`${API_BASE}/assignments/submit`, {
+      method: 'POST',
+      headers: getHeaders(true),
+      body: formData
+    });
+    if (!res.ok) {
+      const err = await res.json();
+      throw new Error(err.detail || 'فشل في رفع صورة الواجب');
+    }
+    return res.json();
+  },
+
   async submitAssignment(assignmentId: number, submissionType: string, textContent?: string, audioBlob?: Blob) {
     const formData = new FormData();
     formData.append('assignment_id', assignmentId.toString());

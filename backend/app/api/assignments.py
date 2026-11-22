@@ -11,12 +11,57 @@ from app.core.config import settings
 from app.core.database import get_db
 from app.api.auth import get_current_user
 from app.models.entities import (
-    User, StudentProfile, Assignment, AssignmentSubmission, AssignmentFeedback
+    User, StudentProfile, Assignment, AssignmentSubmission, AssignmentFeedback,
+    StudentLevelAccess, LessonProgress, Level
 )
 from app.schemas.schemas import AssignmentCreate, AssignmentFeedbackCreate
 from app.services.telegram_notifier import notify_assignment_submission
 
 router = APIRouter(prefix="/assignments", tags=["Assignments & Homework"])
+
+@router.get("/by-level/{level_id}")
+async def get_level_handwriting_assignment(
+    level_id: int,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """Get the mandatory handwriting assignment for a specific level"""
+    q = select(Assignment).where(Assignment.level_id == level_id).order_by(Assignment.id.desc())
+    res = await db.execute(q)
+    assignment = res.scalars().first()
+
+    if not assignment:
+        # Fallback default assignment data if not seeded
+        return {
+            "id": level_id,
+            "title": f"واجب كتابة وتثبيت كلمات المستوى {level_id}",
+            "instructions_ar": "اكتب الكلمات والحروف في كراسة اللغة الإنجليزية بخط جميل ومرتب، ثم التقط صورة لدفترك وارفعها هنا لتفتح الدرس التالي!",
+            "target_words": ["Sat", "Sit", "Pin"] if level_id == 1 else ["Cat", "Dog", "Sun"],
+            "target_sentences": ["I sit.", "A pin."] if level_id == 1 else ["A cat and a dog."],
+            "is_submitted": False
+        }
+
+    # Check if student submitted this assignment
+    sub = None
+    if current_user.student_profile:
+        sub_q = select(AssignmentSubmission).where(
+            and_(
+                AssignmentSubmission.assignment_id == assignment.id,
+                AssignmentSubmission.student_id == current_user.student_profile.id
+            )
+        )
+        sub = (await db.execute(sub_q)).scalar_one_or_none()
+
+    return {
+        "id": assignment.id,
+        "title": assignment.title,
+        "instructions_ar": assignment.instructions_ar,
+        "target_words": assignment.target_words_json,
+        "target_sentences": assignment.target_sentences_json,
+        "is_submitted": sub is not None,
+        "submission_status": sub.status if sub else None,
+        "image_url": sub.image_url if sub else None
+    }
 
 @router.get("/")
 async def get_assignments(
@@ -82,12 +127,13 @@ async def submit_assignment(
         audio_url = f"/uploads/{fname}"
 
     image_url = None
+    image_fpath = None
     if image_file:
         ext = image_file.filename.split(".")[-1] if "." in image_file.filename else "jpg"
         fname = f"hw_img_{student.id}_{uuid.uuid4().hex[:8]}.{ext}"
-        fpath = os.path.join(settings.UPLOAD_DIR, fname)
+        image_fpath = os.path.join(settings.UPLOAD_DIR, fname)
         content = await image_file.read()
-        with open(fpath, "wb") as f:
+        with open(image_fpath, "wb") as f:
             f.write(content)
         image_url = f"/uploads/{fname}"
 
@@ -126,26 +172,48 @@ async def submit_assignment(
         await db.flush()
         sub_id = new_sub.id
 
-    student.xp += 15
-    student.stars += 1
-    await db.commit()
+    student.xp += 25
+    student.stars += 2
 
-    # Get assignment title
+    # Get assignment and unlock next level if needed
     asg_q = select(Assignment).where(Assignment.id == assignment_id)
     asg = (await db.execute(asg_q)).scalar_one_or_none()
-    title = asg.title if asg else "Homework"
+    title = asg.title if asg else "Handwriting Homework"
 
-    # Notify Telegram bot admins
+    if asg:
+        next_lvl = asg.level_id + 1
+        if next_lvl <= 8:
+            acc_q = select(StudentLevelAccess).where(
+                and_(StudentLevelAccess.student_id == student.id, StudentLevelAccess.level_id == next_lvl)
+            )
+            acc = (await db.execute(acc_q)).scalar_one_or_none()
+            if not acc:
+                acc = StudentLevelAccess(
+                    student_id=student.id,
+                    level_id=next_lvl,
+                    is_unlocked=True,
+                    unlocked_by="homework_submission"
+                )
+                db.add(acc)
+            else:
+                acc.is_unlocked = True
+
+    await db.commit()
+
+    # Notify Telegram bot admins with the student's notebook photo!
     await notify_assignment_submission(
         student_name=current_user.full_name,
         student_id_str=current_user.student_id or str(current_user.id),
         assignment_title=title,
-        submission_id=sub_id
+        submission_id=sub_id,
+        photo_path=image_fpath
     )
 
     return {
         "status": "success",
-        "message": "تم تسليم الواجب بنجاح وإشعار المعلم! أحسنت يا بطل 🌟",
-        "xp_earned": 15,
-        "submission_id": sub_id
+        "message": "تم تسليم واجب الكتابة الورقية بنجاح، ووصلت صورة الدفتر للمعلم عبر Telegram! وتم فتح المرحلة التالية 🌟",
+        "xp_earned": 25,
+        "submission_id": sub_id,
+        "image_url": image_url,
+        "next_unlocked": True
     }

@@ -1,4 +1,5 @@
 import logging
+import os
 import aiohttp
 from typing import Optional, Dict, Any, List
 from app.core.config import settings
@@ -36,6 +37,41 @@ async def send_telegram_message(
                     return False
     except Exception as e:
         logger.warning(f"Failed to send Telegram message: {e}")
+        return False
+
+async def send_telegram_photo(
+    chat_id: str | int,
+    photo_path: str,
+    caption: str,
+    reply_markup: Optional[Dict[str, Any]] = None
+) -> bool:
+    """Send child notebook photo to telegram admin chat"""
+    if not settings.TELEGRAM_BOT_TOKEN or not os.path.exists(photo_path):
+        return False
+
+    url = f"https://api.telegram.org/bot{settings.TELEGRAM_BOT_TOKEN}/sendPhoto"
+    try:
+        import json
+        data = aiohttp.FormData()
+        data.add_field("chat_id", str(chat_id))
+        data.add_field("caption", caption)
+        data.add_field("parse_mode", "HTML")
+        if reply_markup:
+            data.add_field("reply_markup", json.dumps(reply_markup))
+
+        with open(photo_path, "rb") as f:
+            data.add_field(
+                "photo",
+                f.read(),
+                filename=os.path.basename(photo_path),
+                content_type="image/jpeg"
+            )
+
+        async with aiohttp.ClientSession() as session:
+            async with session.post(url, data=data, timeout=aiohttp.ClientTimeout(total=15)) as resp:
+                return resp.status == 200
+    except Exception as e:
+        logger.warning(f"Failed to send Telegram photo: {e}")
         return False
 
 async def notify_admins_new_student(
@@ -121,24 +157,31 @@ async def notify_assignment_submission(
     student_name: str,
     student_id_str: str,
     assignment_title: str,
-    submission_id: int
+    submission_id: int,
+    photo_path: Optional[str] = None
 ):
-    """Notify Telegram admin when a homework assignment is handed in"""
-    text = (
-        f"📝 <b>تسليم واجب مدرسي جديد!</b>\n\n"
+    """Notify Telegram admin when a homework assignment is handed in (with notebook photo)"""
+    caption = (
+        f"📝 <b>تسليم واجب كتابة ورقية جديد! ✍️</b>\n\n"
         f"👤 <b>الطالب:</b> {student_name} (<code>{student_id_str}</code>)\n"
         f"📖 <b>الواجب:</b> {assignment_title}\n"
-        f"⏰ <b>الحالة:</b> بانتظار تصحيح المعلم"
+        f"📸 <b>المرفق:</b> صورة الدفتر والكتابة اليدوية\n"
+        f"⏰ <b>الحالة:</b> بانتظار مراجعة وتصحيح المعلم"
     )
 
     reply_markup = {
         "inline_keyboard": [
             [
-                {"text": "🔍 مراجعة الإجابة والتسجيل", "callback_data": f"sub_rev_{submission_id}"},
+                {"text": "🔍 عرض وتصحيح الواجب", "callback_data": f"sub_rev_{submission_id}"},
                 {"text": "⭐ رصد الدرجة", "callback_data": f"sub_grade_{submission_id}"}
             ]
         ]
     }
 
     for admin_id in settings.TELEGRAM_ADMIN_IDS:
-        await send_telegram_message(admin_id, text, reply_markup=reply_markup)
+        if photo_path and os.path.exists(photo_path):
+            sent = await send_telegram_photo(admin_id, photo_path, caption, reply_markup=reply_markup)
+            if not sent:
+                await send_telegram_message(admin_id, caption, reply_markup=reply_markup)
+        else:
+            await send_telegram_message(admin_id, caption, reply_markup=reply_markup)
