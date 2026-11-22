@@ -31,13 +31,34 @@ export const playAudio = (audioUrl?: string, fallbackText?: string) => {
   }
 };
 
-export const speakText = (text: string) => {
+export const speakText = (text: string, options?: { volume?: number; rate?: number; pitch?: number }) => {
   if (!('speechSynthesis' in window)) return;
   window.speechSynthesis.cancel();
   const utterance = new SpeechSynthesisUtterance(text);
   utterance.lang = 'en-US';
-  utterance.rate = 0.85; // slower, clear child teaching rate
-  utterance.pitch = 1.1; // friendly child pitch
+  utterance.volume = options?.volume ?? 1.0; // Maximum volume
+  utterance.rate = options?.rate ?? 0.80; // clear, deliberate child pace
+  utterance.pitch = options?.pitch ?? 1.05;
+
+  // Try selecting the highest clarity English voice
+  try {
+    const voices = window.speechSynthesis.getVoices();
+    const bestVoice = voices.find(v => 
+      v.lang.startsWith('en') && (
+        v.name.includes('Google') || 
+        v.name.includes('Natural') || 
+        v.name.includes('Samantha') || 
+        v.name.includes('David') || 
+        v.name.includes('US')
+      )
+    );
+    if (bestVoice) {
+      utterance.voice = bestVoice;
+    }
+  } catch {
+    // fallback to default
+  }
+
   window.speechSynthesis.speak(utterance);
 };
 

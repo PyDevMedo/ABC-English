@@ -48,22 +48,25 @@ export const QuizzesPage: React.FC = () => {
   const questions = levelQuiz?.questions || [];
   const totalQuestions = questions.length;
   const currentQ = questions[currentIndex];
+  const isCurrentAnswered = currentQ ? !!answers[currentQ.id.toString()] : false;
 
   const handlePlayQuestionAudio = (q: any) => {
     if (!q) return;
     setIsAudioPlaying(true);
     const textToSpeak = q.audio_text || (q.question_type === 'listen_select' ? q.options?.[0] : null);
     if (textToSpeak) {
-      speakText(textToSpeak);
+      speakText(textToSpeak, { volume: 1.0, rate: 0.80 });
     } else if (q.audio_url) {
       playAudio(q.audio_url, textToSpeak);
     }
-    setTimeout(() => setIsAudioPlaying(false), 1200);
+    setTimeout(() => setIsAudioPlaying(false), 1400);
   };
 
   // Play audio when advancing to a new question if listening
   const handleGoToQuestion = (newIdx: number) => {
     if (newIdx < 0 || newIdx >= totalQuestions) return;
+    // Strictly prevent advancing to future questions without answering current question
+    if (newIdx > currentIndex && !isCurrentAnswered) return;
     setCurrentIndex(newIdx);
     const targetQ = questions[newIdx];
     if (targetQ && (targetQ.audio_text || targetQ.question_type === 'listen_select')) {
@@ -207,17 +210,22 @@ export const QuizzesPage: React.FC = () => {
               {questions.map((q: any, idx: number) => {
                 const isAnswered = !!answers[q.id.toString()];
                 const isCurrent = idx === currentIndex;
+                const canNavigate = idx <= currentIndex || (idx === currentIndex + 1 && isCurrentAnswered) || isAnswered;
                 return (
                   <button
                     key={q.id}
                     type="button"
-                    onClick={() => handleGoToQuestion(idx)}
+                    disabled={!canNavigate}
+                    onClick={() => canNavigate && handleGoToQuestion(idx)}
+                    title={canNavigate ? `السؤال ${idx + 1}` : 'أجب على السؤال الحالي أولاً للمتابعة'}
                     className={`w-7 h-7 rounded-full text-xs font-black transition-all flex items-center justify-center ${
                       isCurrent
                         ? 'bg-amber-500 text-white ring-4 ring-amber-200 scale-110'
                         : isAnswered
                         ? 'bg-emerald-500 text-white'
-                        : 'bg-slate-200 text-slate-600 hover:bg-slate-300'
+                        : canNavigate
+                        ? 'bg-slate-200 text-slate-600 hover:bg-slate-300'
+                        : 'bg-slate-100 text-slate-300 cursor-not-allowed opacity-50'
                     }`}
                   >
                     {idx + 1}
@@ -241,19 +249,19 @@ export const QuizzesPage: React.FC = () => {
                   </span>
                 </div>
 
-                {/* Crystal-Clear Audio Playback Button */}
+                {/* Crystal-Clear Loud Audio Playback Button */}
                 {(currentQ.audio_text || currentQ.audio_url || currentQ.question_type === 'listen_select') && (
                   <button
                     type="button"
                     onClick={() => handlePlayQuestionAudio(currentQ)}
-                    className={`px-5 py-3 rounded-2xl font-black text-sm flex items-center justify-center gap-2 transition-all shadow-md active:scale-95 ${
+                    className={`px-6 py-3.5 rounded-2xl font-black text-sm flex items-center justify-center gap-2.5 transition-all shadow-lg active:scale-95 ${
                       isAudioPlaying
-                        ? 'bg-gradient-to-r from-emerald-500 to-teal-500 text-white animate-pulse shadow-emerald-200'
-                        : 'bg-gradient-to-r from-amber-400 via-orange-400 to-amber-500 text-white hover:opacity-95 shadow-amber-200'
+                        ? 'bg-gradient-to-r from-emerald-500 via-teal-500 to-emerald-600 text-white animate-pulse shadow-emerald-300 ring-4 ring-emerald-200'
+                        : 'bg-gradient-to-r from-amber-400 via-orange-500 to-rose-500 text-white hover:opacity-95 shadow-orange-200'
                     }`}
                   >
-                    <Volume2 className={`w-5 h-5 ${isAudioPlaying ? 'animate-bounce' : ''}`} />
-                    <span>{isAudioPlaying ? 'جاري التشغيل الآن...' : 'استمع للمقطع الصوتي 🔊'}</span>
+                    <Volume2 className={`w-5 h-5 ${isAudioPlaying ? 'animate-bounce text-yellow-200' : ''}`} />
+                    <span>{isAudioPlaying ? 'جاري النطق بصوت عالٍ... 🔊' : 'استمع للمقطع الصوتي بصوت عالٍ 🔊'}</span>
                   </button>
                 )}
               </div>
@@ -300,24 +308,47 @@ export const QuizzesPage: React.FC = () => {
                 </button>
 
                 {currentIndex < totalQuestions - 1 ? (
-                  <button
-                    type="button"
-                    onClick={() => handleGoToQuestion(currentIndex + 1)}
-                    className="px-6 py-3 rounded-2xl bg-amber-500 hover:bg-amber-600 text-white font-black text-xs md:text-sm flex items-center gap-1.5 shadow-md shadow-amber-200 active:scale-95 transition-all"
-                  >
-                    <span>السؤال التالي</span>
-                    <ChevronLeft className="w-4 h-4" />
-                  </button>
+                  <div className="flex flex-col items-end gap-1">
+                    <button
+                      type="button"
+                      disabled={!isCurrentAnswered}
+                      onClick={() => handleGoToQuestion(currentIndex + 1)}
+                      className={`px-6 py-3 rounded-2xl font-black text-xs md:text-sm flex items-center gap-1.5 shadow-md transition-all ${
+                        isCurrentAnswered
+                          ? 'bg-amber-500 hover:bg-amber-600 text-white shadow-amber-200 active:scale-95 cursor-pointer'
+                          : 'bg-slate-200 text-slate-400 cursor-not-allowed shadow-none'
+                      }`}
+                    >
+                      <span>السؤال التالي</span>
+                      <ChevronLeft className="w-4 h-4" />
+                    </button>
+                    {!isCurrentAnswered && (
+                      <span className="text-[10px] font-bold text-amber-700 animate-pulse">
+                        اختر إجابة للمتابعة 👆
+                      </span>
+                    )}
+                  </div>
                 ) : (
-                  <button
-                    type="button"
-                    onClick={handleSubmitQuiz}
-                    disabled={submitting || answeredCount === 0}
-                    className="px-7 py-3.5 rounded-2xl bg-gradient-to-r from-emerald-500 to-teal-600 hover:opacity-95 text-white font-black text-sm flex items-center gap-2 shadow-lg shadow-emerald-200 active:scale-95 transition-all disabled:opacity-50"
-                  >
-                    <Award className="w-5 h-5" />
-                    <span>{submitting ? 'جاري الرصد...' : 'تسليم الاختبار ورصد النتيجة ⭐'}</span>
-                  </button>
+                  <div className="flex flex-col items-end gap-1">
+                    <button
+                      type="button"
+                      onClick={handleSubmitQuiz}
+                      disabled={submitting || !isCurrentAnswered}
+                      className={`px-7 py-3.5 rounded-2xl font-black text-sm flex items-center gap-2 shadow-lg transition-all ${
+                        isCurrentAnswered && !submitting
+                          ? 'bg-gradient-to-r from-emerald-500 to-teal-600 text-white shadow-emerald-200 active:scale-95 cursor-pointer'
+                          : 'bg-slate-200 text-slate-400 cursor-not-allowed shadow-none'
+                      }`}
+                    >
+                      <Award className="w-5 h-5" />
+                      <span>{submitting ? 'جاري الرصد...' : 'تسليم الاختبار ورصد النتيجة ⭐'}</span>
+                    </button>
+                    {!isCurrentAnswered && (
+                      <span className="text-[10px] font-bold text-rose-600 animate-pulse">
+                        اختر إجابة السؤال الأخير لتسليم الاختبار 👆
+                      </span>
+                    )}
+                  </div>
                 )}
               </div>
             </div>
