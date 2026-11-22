@@ -2,7 +2,7 @@ import React, { useEffect, useState, useRef } from 'react';
 import { 
   CheckSquare, Clock, CheckCircle2, AlertCircle, RotateCcw, 
   Sparkles, Camera, Image as ImageIcon, Star, Trophy, ExternalLink,
-  ChevronLeft, Award, BookOpen, Upload, PlusCircle, Check
+  ChevronLeft, Award, BookOpen, Upload, PlusCircle, Check, RefreshCw
 } from 'lucide-react';
 import { api } from '../services/api';
 import { useAuth } from '../context/AuthContext';
@@ -32,13 +32,20 @@ export const HomeworkPage: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [selectedPhoto, setSelectedPhoto] = useState<string | null>(null);
 
-  // Quick Photo Upload State
+  // Quick Photo Upload State for Current Level
   const [quickImage, setQuickImage] = useState<File | null>(null);
   const [quickPreview, setQuickPreview] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
-  const [uploadSuccess, setUploadSuccess] = useState(false);
   const cameraInputRef = useRef<HTMLInputElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Specific Resubmission State for "needs_retry" cards
+  const [retryTargetAssignmentId, setRetryTargetAssignmentId] = useState<number | null>(null);
+  const [retryImage, setRetryImage] = useState<File | null>(null);
+  const [retryPreview, setRetryPreview] = useState<string | null>(null);
+  const [retryUploading, setRetryUploading] = useState(false);
+  const retryCameraRef = useRef<HTMLInputElement>(null);
+  const retryFileRef = useRef<HTMLInputElement>(null);
 
   const currentLevelId = user?.current_level_id || 1;
 
@@ -65,7 +72,6 @@ export const HomeworkPage: React.FC = () => {
       const file = e.target.files[0];
       setQuickImage(file);
       setQuickPreview(URL.createObjectURL(file));
-      setUploadSuccess(false);
     }
   };
 
@@ -75,7 +81,6 @@ export const HomeworkPage: React.FC = () => {
     try {
       await api.submitHandwritingPhoto(currentLevelAssignment.id, quickImage);
       confetti({ particleCount: 90, spread: 60, origin: { y: 0.6 } });
-      setUploadSuccess(true);
       setQuickImage(null);
       setQuickPreview(null);
       refreshUser();
@@ -87,6 +92,42 @@ export const HomeworkPage: React.FC = () => {
     }
   };
 
+  // Handlers for specific Retry submission
+  const handleTriggerRetryUpload = (asgId: number, mode: 'camera' | 'file') => {
+    setRetryTargetAssignmentId(asgId);
+    if (mode === 'camera') {
+      retryCameraRef.current?.click();
+    } else {
+      retryFileRef.current?.click();
+    }
+  };
+
+  const handleRetryImageSelected = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files[0]) {
+      const file = e.target.files[0];
+      setRetryImage(file);
+      setRetryPreview(URL.createObjectURL(file));
+    }
+  };
+
+  const handleSendRetrySubmission = async () => {
+    if (!retryImage || !retryTargetAssignmentId) return;
+    setRetryUploading(true);
+    try {
+      await api.submitHandwritingPhoto(retryTargetAssignmentId, retryImage);
+      confetti({ particleCount: 100, spread: 70, origin: { y: 0.6 } });
+      setRetryImage(null);
+      setRetryPreview(null);
+      setRetryTargetAssignmentId(null);
+      refreshUser();
+      loadData();
+    } catch (err: any) {
+      alert(err.message || 'حدث خطأ أثناء إرسال الواجب الجديد');
+    } finally {
+      setRetryUploading(false);
+    }
+  };
+
   const totalCount = submissions.length;
   const pendingCount = submissions.filter(s => s.status === 'submitted').length;
   const gradedCount = submissions.filter(s => s.status === 'graded').length;
@@ -94,6 +135,23 @@ export const HomeworkPage: React.FC = () => {
 
   return (
     <div className="max-w-4xl mx-auto px-4 py-8 space-y-8">
+      {/* Hidden inputs for Retry Upload */}
+      <input
+        type="file"
+        accept="image/*"
+        capture="environment"
+        ref={retryCameraRef}
+        onChange={handleRetryImageSelected}
+        className="hidden"
+      />
+      <input
+        type="file"
+        accept="image/*"
+        ref={retryFileRef}
+        onChange={handleRetryImageSelected}
+        className="hidden"
+      />
+
       {/* Header Section */}
       <div className="text-center max-w-2xl mx-auto space-y-2">
         <span className="inline-flex items-center gap-1.5 px-3.5 py-1 rounded-full bg-emerald-100 text-emerald-900 text-xs font-black shadow-sm">
@@ -104,7 +162,7 @@ export const HomeworkPage: React.FC = () => {
           سجل طلبات الواجب وتصحيح المعلم 📝
         </h2>
         <p className="text-xs md:text-sm font-bold text-slate-500">
-          هنا تتابع وتسلّم دفاتر الخط التي صورتها ورفعتها، ورؤية تقييمات ودرجات المعلم أولاً بأول.
+          هنا تتابع وتسلّم دفاتر الخط التي صورتها ورفعتها، ورؤية تقييمات ودرجات المعلم وإعادة الإرسال فوراً عند طلب المعلم.
         </p>
       </div>
 
@@ -271,6 +329,7 @@ export const HomeworkPage: React.FC = () => {
             const isGraded = sub.status === 'graded';
             const isRetry = sub.status === 'needs_retry';
             const isPending = sub.status === 'submitted';
+            const isThisTargetRetry = retryTargetAssignmentId === sub.assignment_id;
 
             return (
               <div 
@@ -279,7 +338,7 @@ export const HomeworkPage: React.FC = () => {
                   isGraded 
                     ? 'border-emerald-200 bg-emerald-50/20' 
                     : isRetry 
-                    ? 'border-rose-300 bg-rose-50/20' 
+                    ? 'border-rose-400 bg-rose-50/30 ring-2 ring-rose-200' 
                     : 'border-amber-200 bg-white'
                 }`}
               >
@@ -311,9 +370,9 @@ export const HomeworkPage: React.FC = () => {
                       </span>
                     )}
                     {isRetry && (
-                      <span className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full bg-rose-100 text-rose-900 text-xs font-black shadow-sm">
-                        <AlertCircle className="w-4 h-4 text-rose-700" />
-                        مطلوب إعادة كتابة الواجب
+                      <span className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full bg-rose-500 text-white text-xs font-black shadow-sm shadow-rose-200 animate-bounce">
+                        <AlertCircle className="w-4 h-4" />
+                        مطلوب إعادة كتابة الواجب وتصويره ✍️
                       </span>
                     )}
                   </div>
@@ -348,14 +407,78 @@ export const HomeworkPage: React.FC = () => {
                       </div>
                     )}
 
+                    {/* Retry Message Box with Direct Action Button */}
                     {isRetry && (
-                      <div className="p-4 bg-rose-50 rounded-2xl border border-rose-200 space-y-2">
-                        <span className="text-xs font-black text-rose-900 block">
-                          ⚠️ ملاحظة المعلم الإداري:
-                        </span>
-                        <p className="text-xs font-bold text-rose-800 italic">
-                          "{sub.comments || 'يرجى إعادة كتابة الصفحة بخط أوضح وتصويرها مجدداً.'}"
-                        </p>
+                      <div className="p-5 bg-rose-50 rounded-3xl border-2 border-rose-300 space-y-3 shadow-xs">
+                        <div className="flex items-start gap-2.5">
+                          <span className="text-xl">⚠️</span>
+                          <div className="space-y-1">
+                            <span className="text-xs font-black text-rose-950 block">
+                              ملاحظة المعلم عبر البوت:
+                            </span>
+                            <p className="text-xs font-bold text-rose-900 italic">
+                              "{sub.comments || 'يرجى إعادة كتابة الصفحة بخط أوضح وتصويرها مجدداً.'}"
+                            </p>
+                          </div>
+                        </div>
+
+                        {/* Interactive Resubmission Area inside the Retry Card */}
+                        <div className="pt-2 border-t border-rose-200">
+                          {isThisTargetRetry && retryPreview ? (
+                            <div className="flex flex-col sm:flex-row items-center gap-3 bg-white p-3 rounded-2xl border border-rose-300">
+                              <img src={retryPreview} alt="Retry Preview" className="w-20 h-20 object-cover rounded-xl border border-rose-300" />
+                              <div className="flex-1 space-y-1 text-center sm:text-right">
+                                <span className="text-xs font-black text-slate-800 block">الصورة الجديدة جاهزة!</span>
+                                <div className="flex gap-2 justify-center sm:justify-start">
+                                  <button
+                                    type="button"
+                                    onClick={handleSendRetrySubmission}
+                                    disabled={retryUploading}
+                                    className="px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white font-black text-xs rounded-xl shadow-md flex items-center gap-1 cursor-pointer"
+                                  >
+                                    <Check className="w-3.5 h-3.5" />
+                                    <span>{retryUploading ? 'جاري الإرسال...' : 'إرسال الواجب الجديد للمعلم 🚀'}</span>
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setRetryImage(null);
+                                      setRetryPreview(null);
+                                      setRetryTargetAssignmentId(null);
+                                    }}
+                                    className="px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-xl"
+                                  >
+                                    إلغاء
+                                  </button>
+                                </div>
+                              </div>
+                            </div>
+                          ) : (
+                            <div className="flex flex-col sm:flex-row items-center justify-between gap-2.5">
+                              <span className="text-xs font-black text-rose-900">
+                                أعدت كتابة الواجب في كراستك؟ أرسل النسخة الجديدة الآن:
+                              </span>
+                              <div className="flex gap-2 w-full sm:w-auto">
+                                <button
+                                  type="button"
+                                  onClick={() => handleTriggerRetryUpload(sub.assignment_id, 'camera')}
+                                  className="flex-1 sm:flex-none px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white font-black text-xs rounded-xl shadow-md flex items-center justify-center gap-1.5 active:scale-95 transition-all cursor-pointer"
+                                >
+                                  <Camera className="w-3.5 h-3.5" />
+                                  <span>تصوير بالكاميرا 📷</span>
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => handleTriggerRetryUpload(sub.assignment_id, 'file')}
+                                  className="flex-1 sm:flex-none px-4 py-2 bg-white hover:bg-rose-50 text-rose-800 font-black text-xs rounded-xl border border-rose-300 shadow-xs flex items-center justify-center gap-1.5 active:scale-95 transition-all cursor-pointer"
+                                >
+                                  <Upload className="w-3.5 h-3.5 text-rose-600" />
+                                  <span>اختيار من المعرض 🖼️</span>
+                                </button>
+                              </div>
+                            </div>
+                          )}
+                        </div>
                       </div>
                     )}
 
