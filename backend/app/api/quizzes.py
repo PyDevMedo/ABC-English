@@ -1,5 +1,7 @@
+import random
 from datetime import datetime
-from typing import Dict, Any
+from typing import Dict, Any, List
+from collections import defaultdict
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, and_
@@ -30,22 +32,60 @@ async def get_level_quiz(
     if not quiz:
         raise HTTPException(status_code=404, detail="No quiz configured for this level")
 
+    all_questions = list(quiz.questions)
+    if not all_questions:
+        raise HTTPException(status_code=404, detail="No questions available for this quiz")
+
+    # Group questions by pedagogical question_type / category to guarantee diverse coverage:
+    # 1) listen_select (Minimal pairs audio discrimination)
+    # 2) word_match (Semantic nuances)
+    # 3) fill_blank (Contextual grammar & vocab in sentences)
+    # 4) phoneme_or_dialogue (Conversational mastery / Phonics)
+    by_type = defaultdict(list)
+    for q_obj in all_questions:
+        by_type[q_obj.question_type].append(q_obj)
+
+    selected_questions: List[QuizQuestion] = []
+    # Pick 1 random variant from each present category
+    for q_type, q_list in by_type.items():
+        if q_list:
+            selected_questions.append(random.choice(q_list))
+
+    # If fewer than 4 categories were found, fill up to 4 distinct questions
+    if len(selected_questions) < 4:
+        remaining = [q for q in all_questions if q not in selected_questions]
+        random.shuffle(remaining)
+        needed = min(4 - len(selected_questions), len(remaining))
+        selected_questions.extend(remaining[:needed])
+
+    # If total selected is more than 4, take up to 4
+    if len(selected_questions) > 4:
+        selected_questions = selected_questions[:4]
+
+    # Format questions and shuffle options so options aren't in predictable order
+    formatted_questions = []
+    for q_item in selected_questions:
+        raw_options = list(q_item.options_json) if isinstance(q_item.options_json, list) else []
+        # Randomize options order on each attempt
+        shuffled_options = list(raw_options)
+        random.shuffle(shuffled_options)
+
+        formatted_questions.append({
+            "id": q_item.id,
+            "question_type": q_item.question_type,
+            "question_text": q_item.question_text,
+            "audio_url": q_item.audio_url,
+            "audio_text": q_item.correct_answer if (q_item.audio_url or q_item.question_type == "listen_select") else None,
+            "image_url": q_item.image_url,
+            "options": shuffled_options
+        })
+
     return {
         "id": quiz.id,
         "title": quiz.title,
         "passing_score": quiz.passing_score,
         "time_limit_minutes": quiz.time_limit_minutes,
-        "questions": [
-            {
-                "id": q.id,
-                "question_type": q.question_type,
-                "question_text": q.question_text,
-                "audio_url": q.audio_url,
-                "audio_text": q.correct_answer if (q.audio_url or q.question_type == "listen_select") else None,
-                "image_url": q.image_url,
-                "options": q.options_json
-            } for q in quiz.questions
-        ]
+        "questions": formatted_questions
     }
 
 @router.post("/submit", response_model=QuizResultResponse)
@@ -68,10 +108,25 @@ async def submit_quiz(
         raise HTTPException(status_code=404, detail="Quiz not found")
 
     correct_count = 0
-    total_count = len(quiz.questions)
+    # Evaluate only the questions the student actually answered in this attempt
+    submitted_q_ids = set()
+    for k in payload.answers.keys():
+        try:
+            submitted_q_ids.add(int(k))
+        except (ValueError, TypeError):
+            continue
+
+    # Filter to questions that belong to this quiz and were included in the student's attempt
+    attempt_questions = [q for q in quiz.questions if q.id in submitted_q_ids]
+    
+    # If for any reason no matching IDs were found (e.g. empty submission), default to all questions
+    if not attempt_questions:
+        attempt_questions = quiz.questions
+
+    total_count = len(attempt_questions)
     details = {}
 
-    for question in quiz.questions:
+    for question in attempt_questions:
         q_id_str = str(question.id)
         child_ans = payload.answers.get(q_id_str, "")
         is_corr = str(child_ans).strip().lower() == str(question.correct_answer).strip().lower()
