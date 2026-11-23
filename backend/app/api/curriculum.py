@@ -30,14 +30,16 @@ async def get_levels(
 
     if current_user.role == "student" and current_user.student_profile:
         student_id = current_user.student_profile.id
+        current_lvl = current_user.student_profile.current_level_id or 1
         access_q = select(StudentLevelAccess).where(
             and_(StudentLevelAccess.student_id == student_id, StudentLevelAccess.is_unlocked == True)
         )
         access_res = await db.execute(access_q)
         unlocked_level_ids = {a.level_id for a in access_res.scalars().all()}
 
-        # Level 1 always unlocked by default
-        unlocked_level_ids.add(1)
+        # Student's current level and all prior levels up to current_level_id are always unlocked
+        for lvl_n in range(1, current_lvl + 1):
+            unlocked_level_ids.add(lvl_n)
 
         prog_q = select(LessonProgress.lesson_id).where(
             and_(LessonProgress.student_id == student_id, LessonProgress.is_completed == True)
@@ -83,8 +85,12 @@ async def get_level_detail(
 
     is_unlocked = True
     if current_user.role == "student" and current_user.student_profile:
-        student_id = current_user.student_profile.id
-        if level.level_number > 1:
+        student = current_user.student_profile
+        student_id = student.id
+        current_lvl = student.current_level_id or 1
+        
+        # A level is unlocked if it's <= student's current level, or explicitly unlocked in DB
+        if level.level_number > current_lvl:
             access_q = select(StudentLevelAccess).where(
                 and_(StudentLevelAccess.student_id == student_id, StudentLevelAccess.level_id == level_id, StudentLevelAccess.is_unlocked == True)
             )

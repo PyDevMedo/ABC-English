@@ -1,18 +1,31 @@
 FROM python:3.11-slim
 
+# Set working directory
 WORKDIR /app
 
+# Security & system dependencies
 RUN apt-get update && apt-get install -y --no-install-recommends \
     ffmpeg \
     build-essential \
     && rm -rf /var/lib/apt/lists/*
 
+# Install python dependencies
 COPY requirements.txt .
 RUN pip install --no-cache-dir --upgrade pip && \
     pip install --no-cache-dir greenlet && \
     pip install --no-cache-dir -r requirements.txt
 
+# Copy application code
 COPY . .
+
+# Least Privilege Principle: Create non-root unprivileged service user
+RUN groupadd -g 10001 appgroup && \
+    useradd -u 10001 -g appgroup -s /bin/bash -m appuser && \
+    mkdir -p /app/uploads /app/static/audio && \
+    chown -R appuser:appgroup /app
+
+# Switch to non-root user
+USER appuser
 
 EXPOSE 8000
 

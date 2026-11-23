@@ -22,7 +22,16 @@ class Settings(BaseSettings):
     ALGORITHM: str = "HS256"
 
     # Database: Supports SQLite (for easy local dev) and PostgreSQL (for production/VPS)
-    DATABASE_URL: str = os.getenv("DATABASE_URL", "sqlite+aiosqlite:///./english_journey.db")
+    DATABASE_URL: str = f"sqlite+aiosqlite:///{(_ROOT_DIR / 'english_journey.db').as_posix()}"
+    
+    @field_validator("DATABASE_URL", mode="before")
+    @classmethod
+    def resolve_sqlite_path(cls, v: Any) -> str:
+        if isinstance(v, str) and "sqlite+aiosqlite:///./" in v:
+            db_file = v.replace("sqlite+aiosqlite:///./", "")
+            full_path = (_ROOT_DIR / db_file).as_posix()
+            return f"sqlite+aiosqlite:///{full_path}"
+        return v or f"sqlite+aiosqlite:///{(_ROOT_DIR / 'english_journey.db').as_posix()}"
     
     # Telegram Bot Settings
     TELEGRAM_BOT_TOKEN: Optional[str] = ""

@@ -1,5 +1,5 @@
 from typing import Dict, Any
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func, and_
 
@@ -17,6 +17,13 @@ async def get_system_overview_stats(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
+    # Role-Based Access Control (RBAC): Management reports are restricted to Teachers and Admins
+    if current_user.role not in ["teacher", "admin"]:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="غير مصرح لك بالوصول إلى تقارير وإحصائيات الإدارة. هذه الصفحة مخصصة للمعلمين والمشرفين فقط."
+        )
+
     # Total students
     total_students = await db.scalar(select(func.count(User.id)).where(User.role == "student")) or 0
     active_students = await db.scalar(select(func.count(User.id)).where(and_(User.role == "student", User.is_active == True))) or 0

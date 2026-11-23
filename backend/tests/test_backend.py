@@ -7,7 +7,9 @@ from app.core.security import (
 from app.services.pronunciation_service import (
     get_phonemes_for_word, align_and_evaluate_phonemes, evaluate_pronunciation
 )
-from app.services.phonics_curriculum import CURRICULUM_DATA
+from app.services.curriculum_50 import generate_50_levels
+
+CURRICULUM_50_DATA = generate_50_levels()
 
 def test_tripartite_name_validation():
     # Valid 3-part names
@@ -58,37 +60,40 @@ def test_phonemes_mapping_and_alignment():
 
 def test_curriculum_integrity():
     # Ensure all 50 levels are accurately configured
-    assert len(CURRICULUM_DATA) == 50
+    assert len(CURRICULUM_50_DATA) == 50
     
     # Check Level 1 (S, A, T, P, I, N)
-    l1 = CURRICULUM_DATA[0]
+    l1 = CURRICULUM_50_DATA[0]
     l1_symbols = [x["symbol"] for x in l1["letters"]]
     for sym in ["S", "A", "T", "P", "I", "N"]:
         assert sym in l1_symbols
     assert "Sat" in [w["word"] for w in l1["words"]]
-    assert "Sat" in l1["sight_words"]
+    assert l1["passage"]["title"] == "The Little Pin"
+    assert len(l1["sentences"]) >= 3
 
     # Check Level 5 (SH, CH, TH)
-    l5 = CURRICULUM_DATA[4]
+    l5 = CURRICULUM_50_DATA[4]
     l5_symbols = [x["symbol"] for x in l5["letters"]]
     for sym in ["SH", "CH", "TH"]:
         assert sym in l5_symbols
     assert "Ship" in [w["word"] for w in l5["words"]]
-    assert "Ship" in l5["sight_words"]
+    assert l5["passage"]["title"] == "At the Harbor Shop"
 
     # Check Level 8 (Word Families)
-    l8 = CURRICULUM_DATA[7]
+    l8 = CURRICULUM_50_DATA[7]
     assert "Pig" in [w["word"] for w in l8["words"]]
-    assert "Pig" in l8["sight_words"]
+    assert l8["passage"]["title"] == "The Little Bunny"
 
-    # Check Level 15 (Talking with People - Milestone)
-    l15 = CURRICULUM_DATA[14]
+    # Check Level 15 (Talking with Real People - Milestone)
+    l15 = CURRICULUM_50_DATA[14]
     assert l15["level_number"] == 15
-    assert "Talking with People" in l15["title"]
+    assert "Real People" in l15["title"]
     assert "Speak" in [w["word"] for w in l15["words"]]
+    assert l15["passage"]["title"] == "An Inspiring Conversation in London"
 
     # Check Level 50 (Native Bilingual Fluency - Final Mastery)
-    l50 = CURRICULUM_DATA[49]
+    l50 = CURRICULUM_50_DATA[49]
     assert l50["level_number"] == 50
     assert "Mastery" in l50["title"]
-    assert len(CURRICULUM_DATA) == 50
+    assert l50["passage"]["title"] == "The Odyssey of Fluency: From Phonics to the Stars"
+    assert len(CURRICULUM_50_DATA) == 50

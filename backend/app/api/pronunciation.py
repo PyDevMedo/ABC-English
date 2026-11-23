@@ -1,5 +1,5 @@
 import os
-import uuid
+import secrets
 from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form, status
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -7,6 +7,8 @@ from sqlalchemy import select
 
 from app.core.config import settings
 from app.core.database import get_db
+from app.core.security import sanitize_html
+from app.core.file_security import validate_and_save_upload
 from app.api.auth import get_current_user
 from app.models.entities import User, StudentProfile, PronunciationAttempt, Level
 from app.schemas.schemas import PronunciationAssessmentResponse
@@ -25,30 +27,35 @@ async def evaluate_child_pronunciation(
     db: AsyncSession = Depends(get_db)
 ):
     if not current_user.student_profile:
-        raise HTTPException(status_code=400, detail="Only students can perform pronunciation assessments")
+        raise HTTPException(status_code=400, detail="حسابات الطلاب فقط مخول لها إجراء اختبارات النطق التفاعلية.")
 
     student = current_user.student_profile
     os.makedirs(settings.UPLOAD_DIR, exist_ok=True)
 
     saved_filepath = ""
     if audio_file:
-        file_ext = audio_file.filename.split(".")[-1] if "." in audio_file.filename else "wav"
-        filename = f"rec_{student.id}_{uuid.uuid4().hex[:8]}.{file_ext}"
-        saved_filepath = os.path.join(settings.UPLOAD_DIR, filename)
-        content = await audio_file.read()
-        with open(saved_filepath, "wb") as f:
-            f.write(content)
+        saved_filepath, _ = await validate_and_save_upload(
+            upload_file=audio_file,
+            category="audio",
+            target_dir=settings.UPLOAD_DIR,
+            prefix="rec_aud",
+            user_id=student.id
+        )
     else:
         # Default empty audio path if using simulated test
-        saved_filepath = os.path.join(settings.UPLOAD_DIR, f"sim_{uuid.uuid4().hex[:8]}.wav")
+        safe_name = f"sim_{student.id}_{secrets.token_hex(8)}.wav"
+        saved_filepath = os.path.join(settings.UPLOAD_DIR, safe_name)
         with open(saved_filepath, "wb") as f:
             f.write(b"RIFF....WAVEfmt ....data....") # Mock wav header
+
+    clean_target = sanitize_html(target_text)
+    clean_simulated = sanitize_html(simulated_speech) if simulated_speech else None
 
     # Run AI Pronunciation & Phoneme Evaluation
     eval_result = evaluate_pronunciation(
         audio_path=saved_filepath,
-        target_text=target_text,
-        simulated_speech=simulated_speech
+        target_text=clean_target,
+        simulated_speech=clean_simulated
     )
 
     # Check for adaptive learning trigger if phoneme error
@@ -63,7 +70,6 @@ async def evaluate_child_pronunciation(
         if triggered and plan:
             adaptive_triggered = True
             weakness_detected = skill
-            # Dispatch Telegram alert to teachers
             lvl_name = f"Level {student.current_level_id}"
             await notify_ai_teacher_alert(
                 student_name=current_user.full_name,
@@ -84,10 +90,10 @@ async def evaluate_child_pronunciation(
         student.xp += xp_earned
         student.stars += stars_earned
 
-    # Save Pronunciation Attempt
+    # Strict Account Data Isolation: Save Pronunciation Attempt specifically for this student
     attempt = PronunciationAttempt(
         student_id=student.id,
-        target_text=target_text,
+        target_text=clean_target,
         target_phonemes="-".join(eval_result.get("correct_phonemes", []) + eval_result.get("error_phonemes", [])),
         audio_path=saved_filepath,
         overall_score=eval_result["overall_score"],
@@ -108,7 +114,7 @@ async def evaluate_child_pronunciation(
         phoneme_accuracy=eval_result["phoneme_accuracy"],
         clarity_score=eval_result["clarity_score"],
         recognized_text=eval_result["recognized_text"],
-        target_text=target_text,
+        target_text=clean_target,
         correct_phonemes=eval_result["correct_phonemes"],
         error_phonemes=eval_result["error_phonemes"],
         feedback_text=eval_result["feedback_text"],

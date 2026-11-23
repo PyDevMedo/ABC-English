@@ -132,9 +132,25 @@ def get_students_menu_keyboard():
 
 dp = Dispatcher(storage=MemoryStorage())
 
-# Outer middleware to guarantee callback queries are always answered
+def is_admin_user(user_id: int | str) -> bool:
+    """Verify if the telegram user ID is registered in TELEGRAM_ADMIN_IDS"""
+    if not settings.TELEGRAM_ADMIN_IDS:
+        return False
+    try:
+        uid = int(user_id)
+        admin_ids = [int(x) for x in settings.TELEGRAM_ADMIN_IDS]
+        return uid in admin_ids
+    except Exception:
+        return False
+
+# Outer middleware to guarantee callback queries are always answered and check admin RBAC
 @dp.callback_query.outer_middleware()
 async def callback_answer_middleware(handler, event: CallbackQuery, data: dict):
+    # Enforce RBAC on administrative callbacks
+    if event.data and not event.data.startswith(("link_", "parent_")):
+        if not is_admin_user(event.from_user.id):
+            await event.answer("⚠️ عذراً، هذه اللوحة مخصصة لإدارة المنصة والمعلمين المعتمدين فقط.", show_alert=True)
+            return
     try:
         return await handler(event, data)
     finally:
@@ -146,6 +162,22 @@ async def callback_answer_middleware(handler, event: CallbackQuery, data: dict):
 @dp.message(CommandStart())
 async def cmd_start(message: Message, state: FSMContext):
     await state.clear()
+    
+    # Non-admin users are guided to parent /link workflow
+    if not is_admin_user(message.from_user.id):
+        parent_text = (
+            f"{tg_e('WAVE', '👋')} <b>مرحباً بك في بوت منصة ABC لتعليم اللغة الإنجليزية للأطفال!</b>\n\n"
+            f"<blockquote>"
+            f"هذا البوت مخصص لأولياء الأمور لمتابعة أداء أطفالهم واستلام تقارير الواجبات والنطق.\n\n"
+            f"🔗 <b>لربط حساب طفلك بالبوت:</b>\n"
+            f"1. سجل الدخول إلى موقع ABC English.\n"
+            f"2. اضغط على زر <b>(ربط Telegram)</b> لإنشاء كود مكون من 6 أرقام.\n"
+            f"3. أرسل الأمر هنا هكذا: <code>/link 123456</code>"
+            f"</blockquote>"
+        )
+        await message.answer(parent_text, parse_mode="HTML")
+        return
+
     text = (
         f"{tg_e('WAVE', '👋')} <b>مرحباً بك في مركز إدارة منصة ABC لتعليم الإنجليزية!</b>\n\n"
         f"<blockquote>"
@@ -618,7 +650,7 @@ async def handle_send_student_message(message: Message, state: FSMContext):
             user_id=user.id,
             title="رسالة خاصة من المعلم الإداري 👨‍🏫",
             message=msg_text,
-            type="admin_message",
+            notification_type="admin_message",
             is_read=False
         )
         db.add(notif)

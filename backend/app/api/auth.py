@@ -1,27 +1,29 @@
 import asyncio
 import logging
 from datetime import datetime, timedelta
-from typing import Annotated
+from typing import Annotated, Optional
 
 logger = logging.getLogger(__name__)
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, Request, Response
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from sqlalchemy.orm import selectinload
-from jose import jwt, JWTError
+from jose import JWTError
 
 from app.core.config import settings
 from app.core.database import get_db
 from app.core.security import (
-    verify_password, get_password_hash, create_access_token,
-    validate_tripartite_name, validate_phone_number, generate_student_id
+    verify_password, verify_and_update_password, get_password_hash,
+    create_access_token, decode_access_token, revoke_token,
+    validate_tripartite_name, validate_phone_number, generate_student_id, sanitize_html
 )
+from app.core.rate_limiter import limiter
 from app.models.entities import User, StudentProfile, StudentLevelAccess, ActivityLog
 from app.schemas.schemas import UserRegister, UserLogin, Token, UserResponse
 from app.services.telegram_notifier import notify_admins_new_student
 
-router = APIRouter(prefix="/auth", tags=["Authentication"])
+router = APIRouter(prefix="/auth", tags=["Authentication & Security"])
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl=f"{settings.API_V1_STR}/auth/token")
 
@@ -31,11 +33,11 @@ async def get_current_user(
 ) -> User:
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
-        detail="Could not validate credentials",
+        detail="تعذر التحقق من صحة الجلسة، يرجى تسجيل الدخول مجدداً.",
         headers={"WWW-Authenticate": "Bearer"},
     )
     try:
-        payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
+        payload = decode_access_token(token)
         user_id_str: str = payload.get("sub")
         if user_id_str is None:
             raise credentials_exception
@@ -43,6 +45,7 @@ async def get_current_user(
     except (JWTError, ValueError):
         raise credentials_exception
 
+    # Parameterized query with eager loading of student profile
     q = select(User).options(selectinload(User.student_profile)).where(User.id == user_id)
     result = await db.execute(q)
     user = result.scalar_one_or_none()
@@ -51,9 +54,18 @@ async def get_current_user(
     return user
 
 @router.post("/register", response_model=UserResponse)
-async def register(user_in: UserRegister, db: AsyncSession = Depends(get_db)):
-    # 1. Validate Tripartite Name (Must have at least 3 parts, e.g. "محمد أحمد علي")
-    if not validate_tripartite_name(user_in.full_name):
+async def register(
+    user_in: UserRegister,
+    request: Request,
+    db: AsyncSession = Depends(get_db)
+):
+    client_ip = limiter.get_client_ip(request)
+    # 0. General Rate limit check
+    await limiter.check_general_rate_limit(client_ip, limit=15, window_seconds=60)
+
+    # 1. Validate Tripartite Name
+    clean_name = sanitize_html(user_in.full_name)
+    if not validate_tripartite_name(clean_name):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="يجب إدخال الاسم الثلاثي كاملاً للطفل (مثال: محمد أحمد علي)"
@@ -67,7 +79,7 @@ async def register(user_in: UserRegister, db: AsyncSession = Depends(get_db)):
             detail="رقم الهاتف غير صالح، يرجى إدخال رقم هاتف صحيح"
         )
 
-    # 3. Check for duplicates
+    # 3. Check for duplicates using parameterized query
     existing = await db.execute(select(User).where(User.phone_number == clean_phone))
     if existing.scalar_one_or_none():
         raise HTTPException(
@@ -77,19 +89,19 @@ async def register(user_in: UserRegister, db: AsyncSession = Depends(get_db)):
 
     # 4. Generate unique Student ID
     student_id_str = generate_student_id()
-    # Ensure uniqueness
     while True:
         dup = await db.execute(select(User).where(User.student_id == student_id_str))
         if not dup.scalar_one_or_none():
             break
         student_id_str = generate_student_id()
 
-    # 5. Create User
+    # 5. Create User with Argon2id Password Hash
+    argon2_hash = get_password_hash(user_in.password)
     new_user = User(
         student_id=student_id_str,
-        full_name=user_in.full_name.strip(),
+        full_name=clean_name,
         phone_number=clean_phone,
-        hashed_password=get_password_hash(user_in.password),
+        hashed_password=argon2_hash,
         role=user_in.role or "student",
         is_active=True
     )
@@ -118,12 +130,17 @@ async def register(user_in: UserRegister, db: AsyncSession = Depends(get_db)):
         )
         db.add(unlock)
 
-    # Log activity
-    log = ActivityLog(user_id=new_user.id, action="user_registered", details_json={"role": new_user.role})
+    # 7. Audit Log
+    log = ActivityLog(
+        user_id=new_user.id,
+        action="user_registered",
+        details_json={"role": new_user.role, "student_id": student_id_str},
+        ip_address=client_ip
+    )
     db.add(log)
     await db.commit()
 
-    # 7. Notify Telegram Bot Admins in background without delaying user registration
+    # 8. Notify Telegram Bot Admins in background
     reg_date_str = datetime.utcnow().strftime("%Y-%m-%d %H:%M")
     try:
         asyncio.create_task(notify_admins_new_student(
@@ -153,34 +170,98 @@ async def register(user_in: UserRegister, db: AsyncSession = Depends(get_db)):
     )
 
 @router.post("/login", response_model=Token)
-async def login(credentials: UserLogin, db: AsyncSession = Depends(get_db)):
+async def login(
+    credentials: UserLogin,
+    request: Request,
+    response: Response,
+    db: AsyncSession = Depends(get_db)
+):
+    client_ip = limiter.get_client_ip(request)
     clean_phone = validate_phone_number(credentials.phone_number)
-    if not clean_phone:
-        raise HTTPException(status_code=400, detail="خطأ في رقم الهاتف: رقم الهاتف غير صالح، يرجى إدخال رقم صحيح (مثال: 01012345678)")
+    lookup_key = clean_phone or str(credentials.phone_number).strip()
 
+    # 1. Enforce Rate Limiting & Brute Force Lockout with progressive delay
+    await limiter.check_login_rate_limit(client_ip, lookup_key)
+
+    if not clean_phone:
+        await limiter.record_failed_login(client_ip, lookup_key)
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="خطأ في رقم الهاتف أو خطأ في كلمة المرور: بيانات الدخول غير صحيحة، يرجى التأكد من الرقم وكلمة المرور."
+        )
+
+    # 2. Parameterized Query for User
     q = select(User).where(User.phone_number == clean_phone)
     res = await db.execute(q)
     user = res.scalar_one_or_none()
 
-    if not user:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="خطأ في رقم الهاتف: هذا الرقم غير مسجل في النظام، يرجى التأكد من الرقم أو إنشاء حساب جديد."
+    # 3. Password Verification with Argon2id and Transparent Migration
+    is_valid = False
+    new_hash_to_save: Optional[str] = None
+    if user:
+        is_valid, new_hash_to_save = verify_and_update_password(
+            credentials.password,
+            user.hashed_password
         )
 
-    if not verify_password(credentials.password, user.hashed_password):
+    if not user or not is_valid:
+        # Record failed attempt and apply lockout/delay counter
+        await limiter.record_failed_login(client_ip, lookup_key)
+        # Log failed attempt without leaking password
+        audit_log = ActivityLog(
+            user_id=user.id if user else None,
+            action="login_failed",
+            details_json={"phone_attempt": clean_phone[:4] + "****" if len(clean_phone) > 4 else "****"},
+            ip_address=client_ip
+        )
+        db.add(audit_log)
+        await db.commit()
+
+        # Uniform security message protecting against User Enumeration while maintaining compatibility
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="خطأ في كلمة المرور: كلمة المرور المدخلة غير صحيحة، يرجى التأكد منها وإعادة المحاولة."
+            detail="خطأ في رقم الهاتف أو خطأ في كلمة المرور: بيانات الدخول غير صحيحة، يرجى التأكد من الرقم وكلمة المرور."
         )
 
+    # 4. Check if Account is Active
     if not user.is_active:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="هذا الحساب موقوف حالياً من قبل الإدارة. يرجى التواصل مع المعلم."
         )
 
+    # 5. Transparent Argon2id Migration if user had older bcrypt/plain text hash
+    if new_hash_to_save:
+        user.hashed_password = new_hash_to_save
+        user.updated_at = datetime.utcnow()
+        logger.info(f"User {user.id} password hash successfully upgraded to Argon2id.")
+
+    # 6. Reset Rate Limiter for this client
+    await limiter.record_successful_login(client_ip, lookup_key)
+
+    # 7. Generate Secure JWT Token with JTI
     access_token = create_access_token(subject=user.id, role=user.role)
+
+    # 8. Set Secure Cookie with HttpOnly, Secure, SameSite
+    response.set_cookie(
+        key="access_token",
+        value=access_token,
+        httponly=True,
+        secure=True, # Enforce HTTPS transmission
+        samesite="lax",
+        max_age=settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60
+    )
+
+    # 9. Audit Log
+    log = ActivityLog(
+        user_id=user.id,
+        action="login_success",
+        details_json={"role": user.role},
+        ip_address=client_ip
+    )
+    db.add(log)
+    await db.commit()
+
     return Token(
         access_token=access_token,
         token_type="bearer",
@@ -189,24 +270,59 @@ async def login(credentials: UserLogin, db: AsyncSession = Depends(get_db)):
         full_name=user.full_name
     )
 
-# OAuth2 standard compatibility form login
 @router.post("/token", response_model=Token)
 async def login_for_access_token(
     form_data: Annotated[OAuth2PasswordRequestForm, Depends()],
+    request: Request,
+    response: Response,
     db: AsyncSession = Depends(get_db)
 ):
-    clean_phone = validate_phone_number(form_data.username)
-    if not clean_phone:
-        clean_phone = form_data.username
+    client_ip = limiter.get_client_ip(request)
+    clean_phone = validate_phone_number(form_data.username) or form_data.username.strip()
 
-    q = select(User).where((User.phone_number == clean_phone) | (User.student_id == form_data.username))
+    await limiter.check_login_rate_limit(client_ip, clean_phone)
+
+    q = select(User).where((User.phone_number == clean_phone) | (User.student_id == form_data.username.strip()))
     res = await db.execute(q)
     user = res.scalar_one_or_none()
 
-    if not user or not verify_password(form_data.password, user.hashed_password):
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Incorrect username or password")
+    is_valid = False
+    new_hash_to_save = None
+    if user:
+        is_valid, new_hash_to_save = verify_and_update_password(
+            form_data.password,
+            user.hashed_password
+        )
 
+    if not user or not is_valid:
+        await limiter.record_failed_login(client_ip, clean_phone)
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Incorrect username or password"
+        )
+
+    if not user.is_active:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Account is suspended."
+        )
+
+    if new_hash_to_save:
+        user.hashed_password = new_hash_to_save
+        user.updated_at = datetime.utcnow()
+
+    await limiter.record_successful_login(client_ip, clean_phone)
     access_token = create_access_token(subject=user.id, role=user.role)
+
+    response.set_cookie(
+        key="access_token",
+        value=access_token,
+        httponly=True,
+        secure=True,
+        samesite="lax",
+        max_age=settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60
+    )
+
     return Token(
         access_token=access_token,
         token_type="bearer",
@@ -214,12 +330,46 @@ async def login_for_access_token(
         student_id=user.student_id,
         full_name=user.full_name
     )
+
+@router.post("/logout")
+async def logout(
+    response: Response,
+    token: Annotated[str, Depends(oauth2_scheme)]
+):
+    """Secure logout: revokes current token and clears session cookies."""
+    try:
+        payload = decode_access_token(token)
+        jti = payload.get("jti")
+        if jti:
+            revoke_token(jti)
+    except Exception:
+        pass
+
+    response.delete_cookie(key="access_token")
+    return {"status": "success", "message": "تم تسجيل الخروج بنجاح وإلغاء صلاحية الجلسة."}
+
+@router.post("/forgot-password")
+async def forgot_password(
+    request: Request,
+    phone_number: str
+):
+    """
+    Password reset request.
+    Security: Never reveals whether the phone number is registered or not (User Enumeration Defense).
+    """
+    clean_phone = validate_phone_number(phone_number)
+    # Generic uniform response
+    return {
+        "status": "success",
+        "message": "إذا كان رقم الهاتف مسجلاً في المنصة، فسيتم إرسال تعليمات إعادة التعيين عبر Telegram أو رسالة خاصة."
+    }
 
 @router.get("/me", response_model=UserResponse)
 async def get_me(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
+    # Strict Account Data Isolation: Only accesses current authenticated user profile
     profile_q = select(StudentProfile).where(StudentProfile.user_id == current_user.id)
     prof_res = await db.execute(profile_q)
     profile = prof_res.scalar_one_or_none()

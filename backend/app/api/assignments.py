@@ -1,10 +1,9 @@
 import os
-import uuid
 import asyncio
 import logging
 from typing import List, Optional
 from datetime import datetime
-from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form, status
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form, status, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, and_
 from sqlalchemy.orm import selectinload
@@ -13,6 +12,8 @@ logger = logging.getLogger(__name__)
 
 from app.core.config import settings
 from app.core.database import get_db
+from app.core.security import sanitize_html
+from app.core.file_security import validate_and_save_upload
 from app.api.auth import get_current_user
 from app.models.entities import (
     User, StudentProfile, Assignment, AssignmentSubmission, AssignmentFeedback,
@@ -28,9 +29,12 @@ async def get_my_submissions(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
-    """Get all handwriting homework requests/submissions made by the logged-in student"""
+    """
+    Get all handwriting homework requests/submissions made by the logged-in student.
+    Strict Account Data Isolation: Filtered exclusively by current_user.student_profile.id.
+    """
     if not current_user.student_profile:
-        raise HTTPException(status_code=400, detail="Only students can view homework submissions")
+        raise HTTPException(status_code=400, detail="حساب الطالب فقط هو المخول بعرض سجل الواجبات.")
 
     q = select(AssignmentSubmission).options(
         selectinload(AssignmentSubmission.assignment).selectinload(Assignment.level),
@@ -68,13 +72,12 @@ async def get_level_handwriting_assignment(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
-    """Get the mandatory handwriting assignment for a specific level"""
+    """Get the mandatory handwriting assignment for a specific level with isolated submission state"""
     q = select(Assignment).where(Assignment.level_id == level_id).order_by(Assignment.id.desc())
     res = await db.execute(q)
     assignment = res.scalars().first()
 
     if not assignment:
-        # Fallback default assignment data if not seeded
         return {
             "id": level_id,
             "title": f"واجب كتابة وتثبيت كلمات المستوى {level_id}",
@@ -84,7 +87,7 @@ async def get_level_handwriting_assignment(
             "is_submitted": False
         }
 
-    # Check if student submitted this assignment
+    # Strict Account Data Isolation: verify only current student's submission
     sub = None
     if current_user.student_profile:
         sub_q = select(AssignmentSubmission).where(
@@ -137,11 +140,12 @@ async def get_assignments(
                 "feedback": my_sub.feedback.comments if (my_sub and my_sub.feedback) else None
             })
         return results
-    else:
-        # Teachers and Admins get all
+    elif current_user.role in ["teacher", "admin"]:
         q = select(Assignment).order_by(Assignment.id.desc())
         res = await db.execute(q)
         return res.scalars().all()
+    else:
+        raise HTTPException(status_code=403, detail="غير مصرح لك بعرض هذه البيانات.")
 
 @router.post("/submit")
 async def submit_assignment(
@@ -154,33 +158,34 @@ async def submit_assignment(
     db: AsyncSession = Depends(get_db)
 ):
     if not current_user.student_profile:
-        raise HTTPException(status_code=400, detail="Only students can submit homework")
+        raise HTTPException(status_code=400, detail="فقط حسابات الطلاب المخول لها تسليم الواجبات.")
 
     student = current_user.student_profile
     os.makedirs(settings.UPLOAD_DIR, exist_ok=True)
 
+    # 1. Secure File Upload: Validation of MIME, Magic Bytes, Size & Path Traversal
     audio_url = None
     if audio_file:
-        ext = audio_file.filename.split(".")[-1] if "." in audio_file.filename else "mp3"
-        fname = f"hw_aud_{student.id}_{uuid.uuid4().hex[:8]}.{ext}"
-        fpath = os.path.join(settings.UPLOAD_DIR, fname)
-        content = await audio_file.read()
-        with open(fpath, "wb") as f:
-            f.write(content)
-        audio_url = f"/uploads/{fname}"
+        _, audio_url = await validate_and_save_upload(
+            upload_file=audio_file,
+            category="audio",
+            target_dir=settings.UPLOAD_DIR,
+            prefix="hw_aud",
+            user_id=student.id
+        )
 
     image_url = None
     image_fpath = None
     if image_file:
-        ext = image_file.filename.split(".")[-1] if "." in image_file.filename else "jpg"
-        fname = f"hw_img_{student.id}_{uuid.uuid4().hex[:8]}.{ext}"
-        image_fpath = os.path.join(settings.UPLOAD_DIR, fname)
-        content = await image_file.read()
-        with open(image_fpath, "wb") as f:
-            f.write(content)
-        image_url = f"/uploads/{fname}"
+        image_fpath, image_url = await validate_and_save_upload(
+            upload_file=image_file,
+            category="image",
+            target_dir=settings.UPLOAD_DIR,
+            prefix="hw_img",
+            user_id=student.id
+        )
 
-    # Check existing submission
+    # 2. Strict Account Data Isolation: Query strictly matching student_id
     q = select(AssignmentSubmission).where(
         and_(
             AssignmentSubmission.assignment_id == assignment_id,
@@ -190,9 +195,11 @@ async def submit_assignment(
     res = await db.execute(q)
     existing_sub = res.scalar_one_or_none()
 
+    sanitized_text = sanitize_html(text_content) if text_content else None
+
     if existing_sub:
         existing_sub.submission_type = submission_type
-        existing_sub.text_content = text_content or existing_sub.text_content
+        existing_sub.text_content = sanitized_text or existing_sub.text_content
         if audio_url:
             existing_sub.audio_url = audio_url
         if image_url:
@@ -205,7 +212,7 @@ async def submit_assignment(
             assignment_id=assignment_id,
             student_id=student.id,
             submission_type=submission_type,
-            text_content=text_content,
+            text_content=sanitized_text,
             audio_url=audio_url,
             image_url=image_url,
             status="submitted",
@@ -218,7 +225,7 @@ async def submit_assignment(
     student.xp += 25
     student.stars += 2
 
-    # Get assignment and unlock next level if needed
+    # Get assignment and unlock next level for this student
     asg_q = select(Assignment).where(Assignment.id == assignment_id)
     asg = (await db.execute(asg_q)).scalar_one_or_none()
     title = asg.title if asg else "Handwriting Homework"
@@ -241,13 +248,12 @@ async def submit_assignment(
             else:
                 acc.is_unlocked = True
 
-            # Advance student's active level if they just completed homework for their current level
             if student.current_level_id <= asg.level_id:
                 student.current_level_id = next_lvl
 
     await db.commit()
 
-    # Notify Telegram bot admins with the student's notebook photo in background!
+    # Notify Telegram bot admins in background
     try:
         asyncio.create_task(notify_assignment_submission(
             student_name=current_user.full_name,

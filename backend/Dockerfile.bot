@@ -14,4 +14,12 @@ RUN pip install --no-cache-dir --upgrade pip && \
 
 COPY . .
 
+# Least Privilege Principle: Create non-root unprivileged service user
+RUN groupadd -g 10001 botgroup && \
+    useradd -u 10001 -g botgroup -s /bin/bash -m botuser && \
+    mkdir -p /app/uploads /app/static/audio && \
+    chown -R botuser:botgroup /app
+
+USER botuser
+
 CMD ["python", "bot/bot_main.py"]

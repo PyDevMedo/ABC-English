@@ -13,7 +13,7 @@ interface LessonViewModalProps {
   onLessonCompleted?: () => void;
 }
 
-type TabType = 'intro' | 'phonics' | 'words' | 'sentences' | 'lab' | 'handwriting';
+type TabType = 'intro' | 'phonics' | 'words' | 'sentences' | 'reading' | 'lab' | 'handwriting';
 
 interface StepItem {
   id: TabType;
@@ -26,6 +26,7 @@ const STEPS: StepItem[] = [
   { id: 'phonics', title: 'أصوات الحروف', icon: '🔤' },
   { id: 'words', title: 'تركيب الكلمات', icon: '🧩' },
   { id: 'sentences', title: 'قراءة الجمل', icon: '📝' },
+  { id: 'reading', title: 'النص والمقال', icon: '📰' },
   { id: 'lab', title: 'مختبر النطق', icon: '🤖' },
   { id: 'handwriting', title: 'واجب الدفتر', icon: '✍️' }
 ];
@@ -44,6 +45,8 @@ export const LessonViewModal: React.FC<LessonViewModalProps> = ({
   const [selectedWordForLab, setSelectedWordForLab] = useState<string>('Ship');
   const [completed, setCompleted] = useState(false);
   const [repetitions, setRepetitions] = useState<Record<string, number>>({});
+
+  const [showArabicTranslation, setShowArabicTranslation] = useState(false);
 
   const trackRepetition = (key: string, audioUrl?: string, fallbackText?: string) => {
     playAudio(audioUrl, fallbackText);
@@ -77,7 +80,7 @@ export const LessonViewModal: React.FC<LessonViewModalProps> = ({
         setAssignment(asgData);
         if (asgData?.is_submitted) {
           setHwSubmitted(true);
-          setMaxUnlockedIdx(5);
+          setMaxUnlockedIdx(6);
           if (asgData.image_url) {
             setHwImagePreview(asgData.image_url);
           }
@@ -112,6 +115,7 @@ export const LessonViewModal: React.FC<LessonViewModalProps> = ({
   const phonicsSec = sections.find((s: any) => s.section_type === 'phonics');
   const wordsSec = sections.find((s: any) => s.section_type === 'words');
   const sentencesSec = sections.find((s: any) => s.section_type === 'sentences');
+  const readingSec = sections.find((s: any) => s.section_type === 'reading');
 
   const goToNextStep = () => {
     if (currentStepIdx < STEPS.length - 1) {
@@ -186,7 +190,7 @@ export const LessonViewModal: React.FC<LessonViewModalProps> = ({
 
   const finishLesson = async () => {
     if (!hwSubmitted) {
-      setCurrentStepIdx(5); // Switch to handwriting
+      setCurrentStepIdx(6); // Switch to handwriting (step 6)
       return;
     }
     if (lesson?.id) {
@@ -475,7 +479,109 @@ export const LessonViewModal: React.FC<LessonViewModalProps> = ({
                   onClick={goToNextStep}
                   className="kid-button-primary px-6 py-2.5 text-xs font-black flex items-center gap-1.5"
                 >
-                  <span>الخطوة التالية: مختبر النطق الذكي</span>
+                  <span>الخطوة التالية: قراءة النص والمقال 📰</span>
+                  <ArrowLeft className="w-4 h-4" />
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* TAB 4.5: READING PASSAGE & ARTICLE */}
+          {activeTab === 'reading' && (
+            <div className="space-y-6">
+              <div className="text-center mb-4">
+                <span className="px-3 py-1 bg-amber-100 text-amber-900 rounded-full text-xs font-black mb-2 inline-block">
+                  تطوير القراءة والاستيعاب اللغوي 📰
+                </span>
+                <h4 className="text-xl sm:text-2xl font-black text-slate-900">
+                  {readingSec?.content_json?.passage?.title || 'Reading Comprehension Passage'}
+                </h4>
+                <p className="text-xs text-slate-500 font-bold">
+                  اقرأ النص واستمع للنطق النموذجي وتدرب على فهم السياق
+                </p>
+              </div>
+
+              {/* Passage Card */}
+              <div className="bg-gradient-to-br from-amber-50/60 via-white to-sky-50/40 p-6 sm:p-8 rounded-3xl border-2 border-amber-200 shadow-sm space-y-6">
+                <div className="flex items-center justify-between border-b border-amber-100 pb-3">
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-black bg-amber-200 text-amber-900 px-3 py-1 rounded-full">
+                      ABC Reader Level {levelData.level_number}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setShowArabicTranslation(!showArabicTranslation)}
+                      className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-xl transition-colors"
+                    >
+                      {showArabicTranslation ? 'إخفاء الترجمة العربية 👁️' : 'إظهار الترجمة العربية 📖'}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const txt = readingSec?.content_json?.passage?.text || '';
+                        trackRepetition(`passage_${levelData.level_number}`, undefined, txt);
+                      }}
+                      className="px-4 py-1.5 bg-amber-400 hover:bg-amber-500 text-amber-950 text-xs font-black rounded-xl flex items-center gap-1.5 shadow-sm active:scale-95 transition-all"
+                    >
+                      <Volume2 className="w-4 h-4" />
+                      <span>استمع للنص كاملاً 🔊</span>
+                    </button>
+                  </div>
+                </div>
+
+                {/* English Passage Text */}
+                <div 
+                  className="font-fredoka text-lg sm:text-2xl font-semibold leading-relaxed sm:leading-loose text-slate-800 tracking-wide text-left p-4 rounded-2xl bg-white/80 border border-amber-100/80 shadow-inner"
+                  dir="ltr"
+                >
+                  {readingSec?.content_json?.passage?.text || 'No passage available for this lesson.'}
+                </div>
+
+                {/* Arabic Translation (Collapsible) */}
+                {showArabicTranslation && (
+                  <div className="p-4 rounded-2xl bg-amber-100/50 border border-amber-300 text-sm font-bold text-slate-800 leading-relaxed text-right animate-fadeIn">
+                    <span className="text-xs font-black text-amber-900 block mb-1">الترجمة التوضيحية:</span>
+                    {readingSec?.content_json?.passage?.translation_ar}
+                  </div>
+                )}
+
+                {/* Reading Repetition & Milestone indicator */}
+                <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-2">
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-bold text-slate-600">تكرار الاستماع والقراءة:</span>
+                    <span className={`text-xs font-black px-2.5 py-1 rounded-full ${
+                      (repetitions[`passage_${levelData.level_number}`] || 0) >= 3
+                        ? 'bg-emerald-100 text-emerald-800 border border-emerald-300'
+                        : 'bg-amber-100 text-amber-900 border border-amber-300'
+                    }`}>
+                      {repetitions[`passage_${levelData.level_number}`] || 0} / 3 {
+                        (repetitions[`passage_${levelData.level_number}`] || 0) >= 3 ? 'قراءة متقنة ✅' : 'استمع وكرر 🔁'
+                      }
+                    </span>
+                  </div>
+                  <span className="text-xs font-bold text-slate-500">
+                    💡 نصيحة: اقرأ بصوت عالٍ بالتزامن مع الصوت النموذجي.
+                  </span>
+                </div>
+              </div>
+
+              <div className="flex justify-between items-center pt-4 border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={goToPrevStep}
+                  className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl text-xs flex items-center gap-1"
+                >
+                  <ArrowRight className="w-4 h-4" />
+                  <span>السابق</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={goToNextStep}
+                  className="kid-button-primary px-6 py-2.5 text-xs font-black flex items-center gap-1.5"
+                >
+                  <span>الخطوة التالية: مختبر النطق الذكي 🤖</span>
                   <ArrowLeft className="w-4 h-4" />
                 </button>
               </div>

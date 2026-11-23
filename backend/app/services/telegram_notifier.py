@@ -1,5 +1,6 @@
 import logging
 import os
+import ssl
 import aiohttp
 from typing import Optional, Dict, Any, List
 from app.core.config import settings
@@ -14,13 +15,21 @@ EMOJI_STUDENT = "6039640735995666163"
 EMOJI_CAMERA = "6039643566379114876"
 EMOJI_SPARKLES = "6039709764710047914"
 
+def get_strict_ssl_context() -> ssl.SSLContext:
+    """Enforce strict TLS 1.2+ and mandatory certificate validation."""
+    ctx = ssl.create_default_context()
+    ctx.minimum_version = ssl.TLSVersion.TLSv1_2
+    ctx.check_hostname = True
+    ctx.verify_mode = ssl.CERT_REQUIRED
+    return ctx
+
 async def send_telegram_message(
     chat_id: str | int,
     text: str,
     reply_markup: Optional[Dict[str, Any]] = None,
     parse_mode: str = "HTML"
 ) -> bool:
-    """Send message to a telegram chat with optional inline keyboard buttons"""
+    """Send message to a telegram chat with optional inline keyboard buttons over secure HTTPS"""
     if not settings.TELEGRAM_BOT_TOKEN:
         logger.info(f"[Telegram Not Configured] Would have sent to {chat_id}:\n{text}")
         return False
@@ -35,7 +44,8 @@ async def send_telegram_message(
         payload["reply_markup"] = reply_markup
 
     try:
-        async with aiohttp.ClientSession() as session:
+        connector = aiohttp.TCPConnector(ssl=get_strict_ssl_context())
+        async with aiohttp.ClientSession(connector=connector) as session:
             async with session.post(url, json=payload, timeout=aiohttp.ClientTimeout(total=5)) as resp:
                 if resp.status == 200:
                     return True
@@ -53,7 +63,7 @@ async def send_telegram_photo(
     caption: str,
     reply_markup: Optional[Dict[str, Any]] = None
 ) -> bool:
-    """Send child notebook photo to telegram admin chat"""
+    """Send child notebook photo to telegram admin chat over secure HTTPS"""
     if not settings.TELEGRAM_BOT_TOKEN or not os.path.exists(photo_path):
         return False
 
@@ -75,7 +85,8 @@ async def send_telegram_photo(
                 content_type="image/jpeg"
             )
 
-        async with aiohttp.ClientSession() as session:
+        connector = aiohttp.TCPConnector(ssl=get_strict_ssl_context())
+        async with aiohttp.ClientSession(connector=connector) as session:
             async with session.post(url, data=data, timeout=aiohttp.ClientTimeout(total=15)) as resp:
                 return resp.status == 200
     except Exception as e:
