@@ -130,7 +130,9 @@ def get_students_menu_keyboard():
     ]
     return InlineKeyboardMarkup(inline_keyboard=keyboard)
 
+# Initialize aiogram Bot & Dispatcher
 dp = Dispatcher(storage=MemoryStorage())
+bot = Bot(token=settings.TELEGRAM_BOT_TOKEN) if settings.TELEGRAM_BOT_TOKEN else None
 
 def is_admin_user(user_id: int | str) -> bool:
     """Verify if the telegram user ID is registered in TELEGRAM_ADMIN_IDS"""

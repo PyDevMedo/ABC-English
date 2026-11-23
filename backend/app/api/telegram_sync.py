@@ -1,7 +1,9 @@
 import os
+import json
+import logging
 from datetime import datetime, timedelta
-from typing import Optional
-from fastapi import APIRouter, Depends, HTTPException, status
+from typing import Optional, Dict, Any
+from fastapi import APIRouter, Depends, HTTPException, status, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, and_
 
@@ -14,7 +16,75 @@ from app.models.entities import (
 from app.core.security import generate_telegram_link_code
 from app.schemas.schemas import TelegramLinkTokenResponse, TelegramLinkVerify
 
+logger = logging.getLogger(__name__)
+
 router = APIRouter(prefix="/telegram", tags=["Telegram Integration"])
+
+# Bot instance & Dispatcher initialized lazily for Webhook
+_bot = None
+_dp = None
+
+def get_bot_and_dp():
+    global _bot, _dp
+    if _bot is None or _dp is None:
+        from aiogram import Bot
+        from bot.bot_main import dp, bot as main_bot
+        _bot = main_bot if main_bot else Bot(token=settings.TELEGRAM_BOT_TOKEN)
+        _dp = dp
+    return _bot, _dp
+
+@router.post("/webhook")
+async def telegram_webhook(request: Request):
+    """
+    Vercel Serverless Webhook Endpoint:
+    Receives Telegram updates instantly without polling daemon!
+    """
+    if not settings.TELEGRAM_BOT_TOKEN:
+        raise HTTPException(status_code=400, detail="Telegram bot token not configured")
+
+    try:
+        from aiogram.types import Update
+        bot, dp = get_bot_and_dp()
+        data = await request.json()
+        update = Update(**data)
+        await dp.feed_update(bot=bot, update=update)
+        return {"status": "ok"}
+    except Exception as e:
+        logger.error(f"Error processing telegram webhook update: {e}", exc_info=True)
+        return {"status": "error", "detail": str(e)}
+
+@router.get("/set-webhook")
+async def set_telegram_webhook(webhook_url: str):
+    """
+    Convenient helper to register the Vercel URL with Telegram Bot API:
+    Example: GET /api/v1/telegram/set-webhook?webhook_url=https://your-site.vercel.app/api/v1/telegram/webhook
+    """
+    if not settings.TELEGRAM_BOT_TOKEN:
+        raise HTTPException(status_code=400, detail="TELEGRAM_BOT_TOKEN is missing")
+    
+    import aiohttp
+    clean_url = webhook_url.strip()
+    tg_api = f"https://api.telegram.org/bot{settings.TELEGRAM_BOT_TOKEN}/setWebhook?url={clean_url}"
+    
+    async with aiohttp.ClientSession() as session:
+        async with session.get(tg_api) as resp:
+            res_data = await resp.json()
+            return {
+                "configured_url": clean_url,
+                "telegram_response": res_data
+            }
+
+@router.get("/webhook-info")
+async def get_telegram_webhook_info():
+    """Check current webhook registration status with Telegram"""
+    if not settings.TELEGRAM_BOT_TOKEN:
+        raise HTTPException(status_code=400, detail="TELEGRAM_BOT_TOKEN is missing")
+    
+    import aiohttp
+    tg_api = f"https://api.telegram.org/bot{settings.TELEGRAM_BOT_TOKEN}/getWebhookInfo"
+    async with aiohttp.ClientSession() as session:
+        async with session.get(tg_api) as resp:
+            return await resp.json()
 
 @router.post("/generate-link-code", response_model=TelegramLinkTokenResponse)
 async def generate_link_token(
